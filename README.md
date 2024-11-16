@@ -20,16 +20,13 @@ To install the dependencies, run the following command:
 ```
 pip install -r requirements.txt
 ```
-or
-```
-pip-sync
-```
 
 To add file to package dependencies, run the following command:
 ```
 pip freeze > requirements.txt
 ```
 
+Please create .env file in the root directory and fill the environment variables listed on the template
 ## Usage
 To run the system, execute the following command:
 ```
