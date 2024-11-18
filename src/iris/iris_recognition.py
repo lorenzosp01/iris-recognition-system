@@ -8,9 +8,6 @@ def find_pupil(image):
     # Preprocessing: Smooth the image to reduce noise
     blurred = cv2.GaussianBlur(image, (9, 9), 2)
 
-    # Edge detection
-    edges = cv2.Canny(blurred, 50, 150)
-
     # Use Hough Circle Transform to detect circles (approximates iris)
     circles = cv2.HoughCircles(blurred, cv2.HOUGH_GRADIENT, dp=1.2, minDist=30,
                                param1=50, param2=30, minRadius=20, maxRadius=60)
@@ -47,8 +44,7 @@ def extract_iris(image, pupil_center, pupil_radius, iris_radius_multiplier=2.5):
     return iris_region, mask
 
 if __name__ == '__main__':
-    folder = 'C:/Users/flypi/PycharmProjects/iris-recognition-system/src/data/datasets/CASIA-Iris-Thousand/CASIA-Iris-Thousand/000/L/'
-
+    folder = "../data/datasets/CASIA-Iris-Thousand/CASIA-Iris-Thousand/000/L/"
     for path in os.listdir(folder):
         image = cv2.imread(os.path.join(folder, path), cv2.IMREAD_GRAYSCALE)
         x, y, r = find_pupil(image)
