@@ -3,13 +3,16 @@ import os
 import cv2
 import numpy as np
 
-def find_pupil(image):
+from src.utils.daugman import find_iris
 
+
+def find_pupil(image):
     # Preprocessing: Smooth the image to reduce noise
-    blurred = cv2.GaussianBlur(image, (9, 9), 2)
+    median_blurred = cv2.medianBlur(image, 5)  # blur image to remove noise
+    gaussian_blurred = cv2.GaussianBlur(median_blurred, (9, 9), 2)
 
     # Use Hough Circle Transform to detect circles (approximates iris)
-    circles = cv2.HoughCircles(blurred, cv2.HOUGH_GRADIENT, dp=1.2, minDist=30,
+    circles = cv2.HoughCircles(gaussian_blurred, cv2.HOUGH_GRADIENT, dp=1.2, minDist=30,
                                param1=50, param2=30, minRadius=20, maxRadius=60)
 
     # Check if any circle is detected
@@ -28,28 +31,33 @@ def find_pupil(image):
     else:
         print("No circles detected.")
 
-def extract_iris(image, pupil_center, pupil_radius, iris_radius_multiplier=2.5):
+
+def extract_iris(image, pupil_center, pupil_radius, iris_constant=2.3):
     x, y = pupil_center
-    iris_radius = int(pupil_radius * iris_radius_multiplier)  # Calculate the iris radius
+    iris_radius = int(pupil_radius * iris_constant)  # Calculate the iris radius
 
     # Create a blank mask
     mask = np.zeros_like(image, dtype=np.uint8)
 
     # Draw the iris circle on the mask
-    cv2.circle(mask, (x, y), iris_radius, 255, -1)
+    cv2.circle(mask, (x, y), iris_radius, (255, 255, 255), -1)
 
-    # Extract the iris region
-    iris_region = cv2.bitwise_and(image, image, mask=mask)
+    # Extract the iris region without the pupil
+    iris = cv2.bitwise_and(image, image, mask=mask)
 
-    return iris_region, mask
+    # Remove the pupil from the iris region
+    iris = cv2.circle(iris, (x, y), pupil_radius, (0, 0, 0), -1)
+
+    return iris
+
 
 if __name__ == '__main__':
-    folder = "../data/datasets/CASIA-Iris-Thousand/CASIA-Iris-Thousand/000/L/"
+    folder = "../data/datasets/CASIA-Iris-Thousand/CASIA-Iris-Thousand/001/L/"
     for path in os.listdir(folder):
         image = cv2.imread(os.path.join(folder, path), cv2.IMREAD_GRAYSCALE)
         x, y, r = find_pupil(image)
-        iris_region, mask = extract_iris(image, (x, y), r)
+        iris_region = extract_iris(image, (x, y), r)
+        # plot original image and iris region
+        cv2.imshow(f"Iris Region-{path}", iris_region)
 
-        cv2.imshow(path, iris_region)
     cv2.waitKey(0)
-
