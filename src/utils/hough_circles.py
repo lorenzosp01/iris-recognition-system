@@ -1,9 +1,6 @@
 import os
-
 import cv2
 import numpy as np
-
-from src.utils.daugman import find_iris
 
 
 def find_pupil(image):
@@ -32,32 +29,63 @@ def find_pupil(image):
         print("No circles detected.")
 
 
-def extract_iris(image, pupil_center, pupil_radius, iris_constant=2.3):
-    x, y = pupil_center
-    iris_radius = int(pupil_radius * iris_constant)  # Calculate the iris radius
+def extract_iris(image, pupil_center, radius, kernel, distance=2, threshold=10):
+    x_center, y_center = pupil_center
+    h, w = image.shape
 
-    # Create a blank mask
-    mask = np.zeros_like(image, dtype=np.uint8)
+    def apply_local_filter(x, y):
+        half_k = kernel // 2
+        x_start, x_end = max(0, x - half_k), min(w, x + half_k + 1)
+        y_start, y_end = max(0, y - half_k), min(h, y + half_k + 1)
+        window = image[y_start:y_end, x_start:x_end]
+        return np.mean(window)
 
-    # Draw the iris circle on the mask
-    cv2.circle(mask, (x, y), iris_radius, (255, 255, 255), -1)
+    def find_edge_along_line(start, direction, limit):
+        """
+        Trova il bordo lungo una direzione data.
+        """
+        x, y = start
+        dx, dy = direction
+        x_start, y_start = x, y
+        while 0 <= x < w and 0 <= y < h and x - x_center < limit and y - y_center < limit:
+            current_value = apply_local_filter(x, y)
+            center_value = apply_local_filter(x_start, y_start)
 
-    # Extract the iris region without the pupil
-    iris = cv2.bitwise_and(image, image, mask=mask)
+            # Confronta la differenza di intensità
+            if abs(current_value - center_value) > threshold:
+                if (direction[0] == 0):
+                    return int(abs(y - y_center + kernel))
+                else:
+                    return int(abs(x - x_center + kernel))
+            x += dx
+            y += dy
+            if (abs(x-x_start) > kernel*distance or abs(y-y_start) > kernel*distance):
+                x_start = x_start + (kernel*dx)
+                y_start = y_start + (kernel*dy)
+        return int(limit)
 
-    # Remove the pupil from the iris region
-    iris = cv2.circle(iris, (x, y), pupil_radius, (0, 0, 0), -1)
+    # Trova i bordi nelle quattro direzioni principali
+    top = find_edge_along_line((x_center, y_center - radius - kernel), (0, -1), 2.5 * radius)
+    bottom = find_edge_along_line((x_center, y_center + radius + kernel), (0, 1), 2.5 * radius)
+    left = find_edge_along_line((x_center - radius - kernel, y_center), (-1, 0), 2.5 * radius)
+    right = find_edge_along_line((x_center + radius + kernel, y_center), (1, 0), 2.5 * radius)
 
-    return iris
+    return max(top, bottom, left, right)+(kernel//2)
 
 
 if __name__ == '__main__':
-    folder = "../data/datasets/CASIA-Iris-Thousand/CASIA-Iris-Thousand/001/L/"
+    folder = "../data/datasets/CASIA-Iris-Thousand/CASIA-Iris-Thousand/000/L/"
     for path in os.listdir(folder):
         image = cv2.imread(os.path.join(folder, path), cv2.IMREAD_GRAYSCALE)
         x, y, r = find_pupil(image)
-        iris_region = extract_iris(image, (x, y), r)
-        # plot original image and iris region
-        cv2.imshow(f"Iris Region-{path}", iris_region)
 
+        cv2.circle(image, (x, y), r, (255, 255, 255), 2)
+        cv2.circle(image, (x, y), 1, (255, 255, 255), 2)
+
+        iris_region = extract_iris(image, (x, y), r,8, 1, 5)
+
+        cv2.circle(image, (x, y), iris_region, (255, 255, 255), 1)
+
+        cv2.imshow(f"Iris Region{path}", image)
     cv2.waitKey(0)
+    cv2.destroyAllWindows()
