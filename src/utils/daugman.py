@@ -1,100 +1,35 @@
+# Perform segmentation
+import os
 import cv2
-import numpy as np
-import itertools
-import math
-from typing import Tuple, List
-
-def daugman(gray_img: np.ndarray, center: Tuple[int, int],
-            start_r: int, end_r: int, step: int = 1) -> Tuple[float, int]:
-    """ The function will calculate pixel intensities for the circles
-        in the ``range(start_r, end_r, step)`` for a given ``center``,
-        and find a circle that precedes the biggest intensity drop
-
-        :param gray_img: grayscale picture
-        :param center:  center coordinates ``(x, y)``
-        :param start_r: bottom value for iris radius in pixels
-        :param end_r: top value for iris radius in pixels
-        :param step: step value for iris radii range in pixels
-
-        .. attention::
-            Input grayscale image should be a square, not a rectangle
-
-        :return: intensity_value, radius
-    """
-    x, y = center
-    intensities = []
-    mask = np.zeros_like(gray_img)
-
-    # for every radius in range
-    radii = list(range(start_r, end_r, step))  # type: List[int]
-    for r in radii:
-        # draw circle on mask
-        cv2.circle(mask, center, r, 255, 1)
-        # get pixel from original image, it is faster than np or cv2
-        diff = gray_img & mask
-        # normalize, np.add.reduce faster than .sum()
-        #            diff[diff > 0] faster than .flatten()
-        intensities.append(np.add.reduce(diff[diff > 0]) / (2 * math.pi * r))
-        # refresh mask
-        mask.fill(0)
-
-    # calculate delta of radius intensitiveness
-    #     mypy does not tolerate var type reload
-    intensities_np = np.array(intensities, dtype=np.float32)
-    del intensities
-
-    # circles intensity differences, x5 faster than np.diff()
-    intensities_np = intensities_np[:-1] - intensities_np[1:]
-    # aply gaussian filter
-    #     GaussianBlur() faster than filter2D() with custom kernel
-    # original kernel:
-    # > The Gaussian filter in our case is designedin MATLAB and
-    # > is a 1 by 5 (rows by columns) vector with intensity values
-    # > given by vector A = [0.0003 0.1065 0.7866 0.1065 0.0003]
-    intensities_np = abs(cv2.GaussianBlur(intensities_np, (1, 5), 0))
-    # get maximum value
-    idx = np.argmax(intensities_np)  # type: int
-
-    # return intensity value, radius
-    return intensities_np[idx], radii[idx]
+from src.utils.fnc.segment import segment
 
 
-def find_iris(gray: np.ndarray, *,
-              daugman_start: int, daugman_end: int,
-              daugman_step: int = 1, points_step: int = 1,) -> Tuple[Tuple[int, int], int]:
-    """ The function will apply :func:`daugman` on every pixel in the calculated image slice.
-        Basically, we are calculating where lies set of valid circle centers.
-        It is assumed that iris center lies within central 1/3 of the image.
+def remove_glare(img):
+    # Threshold to detect bright spots (glare regions)
+    _, mask = cv2.threshold(img, 200, 255, cv2.THRESH_BINARY)
 
-        :param gray: graysacale **square** image
-        :param points_step: it will run daugman for each ``points_step``th point.
-                            It has linear correlation with overall iris search speed
-        :param daugman_start: bottom value for iris radius in pixels for :func:``daugman``
-        :param daugman_end: top value for iris radius in pixels for :func:``daugman``
-        :param daugman_step: step value for iris radii range in pixels for :func:``daugman``.
-                             It has linear correlation with overall iris search speed
+    # Load pretrained model
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    refined_mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
-        :return: radius with biggest intensiveness delta on image as ``((xc, yc), radius)``
-    """
-    h, w = gray.shape
-    if h != w:
-        print('Your image is not a square!')
+    inpainted = cv2.inpaint(img, refined_mask, inpaintRadius=3, flags=cv2.INPAINT_TELEA)
 
-    # reduce step for better accuracy
-    # we will look only on dots within central 1/3 of image
-    single_axis_range = range(int(h / 3), h - int(h / 3), points_step)
-    all_points = itertools.product(single_axis_range, single_axis_range)
+    return inpainted
 
-    intensity_values = []
-    coords = []  # List[Tuple[Tuple(int, int), int]]
 
-    for point in all_points:
-        val, r = daugman(gray, point, daugman_start, daugman_end, daugman_step)
-        intensity_values.append(val)
-        coords.append((point, r))
+if __name__ == '__main__':
+    dataset_path = "../data/datasets/CASIA-Iris-Thousand/CASIA-Iris-Thousand/001/L/"
 
-    # return the radius with biggest intensiveness delta on image
-    # ((xc, yc), radius)
-    # x10 faster than coords[np.argmax(values)]
-    best_idx = intensity_values.index(max(intensity_values))
-    return coords[best_idx]
+    for image_path in os.listdir(dataset_path):
+        # Read the image
+        im = cv2.imread(os.path.join(dataset_path, image_path), cv2.IMREAD_GRAYSCALE)
+        # Remove glare from the image
+        im = remove_glare(im)
+        # Perform segmentation
+        ciriris, cirpupil, imwithnoise = segment(im)
+
+        # Draw the pupil and iris boundaries
+        cv2.circle(im, (ciriris[1], ciriris[0]), ciriris[2], (255, 255, 255), 2)
+
+        cv2.imshow(f"Segmented Iris-{image_path}", im)
+    cv2.waitKey(0)
