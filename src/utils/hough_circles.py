@@ -29,9 +29,10 @@ def find_pupil(image):
         print("No circles detected.")
 
 
-def extract_iris(image, pupil_center, radius, kernel, distance=2, threshold=10):
+def extract_iris(image, colorImage, pupil_center, radius, kernel, distance=2, threshold=10):
     x_center, y_center = pupil_center
     h, w = image.shape
+    kernel = kernel if kernel % 2 == 1 else kernel + 1
 
     def apply_local_filter(x, y):
         half_k = kernel // 2
@@ -47,12 +48,21 @@ def extract_iris(image, pupil_center, radius, kernel, distance=2, threshold=10):
         x, y = start
         dx, dy = direction
         x_start, y_start = x, y
+
         while 0 <= x < w and 0 <= y < h and x - x_center < limit and y - y_center < limit:
+
             current_value = apply_local_filter(x, y)
             center_value = apply_local_filter(x_start, y_start)
+            diff = abs(current_value - center_value)
+            drawImage = colorImage.copy()
+            cv2.circle(drawImage, (x, y), 1, (0, 0, 255), 2)
+            cv2.circle(drawImage, (x_start, y_start), 1, (0, 255, 0), 2)
+            cv2.imshow(f"Difference:", drawImage)
+            cv2.waitKey(250)
 
             # Confronta la differenza di intensità
-            if abs(current_value - center_value) > threshold:
+            if diff > threshold:
+                print(f"Diff: {diff}")
                 if (direction[0] == 0):
                     return int(abs(y - y_center + kernel))
                 else:
@@ -76,13 +86,13 @@ def extract_iris(image, pupil_center, radius, kernel, distance=2, threshold=10):
 if __name__ == '__main__':
     folder = "../data/datasets/CASIA-Iris-Thousand/CASIA-Iris-Thousand/000/L/"
     for path in os.listdir(folder):
-        image = cv2.imread(os.path.join(folder, path), cv2.IMREAD_GRAYSCALE)
-        x, y, r = find_pupil(image)
+        image = cv2.imread(os.path.join(folder, path), 1)
+        x, y, r = find_pupil(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY))
 
         cv2.circle(image, (x, y), r, (255, 255, 255), 2)
         cv2.circle(image, (x, y), 1, (255, 255, 255), 2)
 
-        iris_region = extract_iris(image, (x, y), r,8, 1, 5)
+        iris_region = extract_iris(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), image, (x, y), r,8, 1, 8)
 
         cv2.circle(image, (x, y), iris_region, (255, 255, 255), 1)
 
