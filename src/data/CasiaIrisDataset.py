@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+import sys
 import cv2
 from torch.utils.data import Dataset
 
@@ -20,15 +21,18 @@ class CasiaIrisDataset(Dataset):
         im_idx = idx % len(self.data)
 
         label = self.data.iloc[im_idx]['Label']
+        label, eye = label.split("-")
         img_path = self.data.iloc[im_idx]['ImagePath']
 
         img_path = img_path.split("/kaggle/input/casia-iris-thousand/")[1]
-        img_path = img_path.replace("/", "\\")
+
+        if sys.platform == "win32":
+            img_path = img_path.replace("/", "\\")
 
         relative_path = os.path.join(self.root_dir, img_path)
 
         try:
             img = cv2.imread(relative_path)
-            return img, label
+            return label, eye, img
         except FileNotFoundError:
             raise Exception(f"Image {img_path} not found in dataset")
