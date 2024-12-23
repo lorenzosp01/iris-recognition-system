@@ -1,9 +1,9 @@
 import random
+import cv2
 import pandas as pd
 import os
-import cv2
-from PIL import Image
 from torch.utils.data import Dataset
+from src.utils.irisExtractor import centerIris
 
 
 class CasiaIrisDataset(Dataset):
@@ -17,6 +17,7 @@ class CasiaIrisDataset(Dataset):
         self.filedict = {}
         self.train_mode = False
         self.data = pd.read_csv(os.path.join(root_dir, 'iris_thousands.csv'))
+        print(f"Dataset size: {len(self.data)}")
 
         count = 0
         for user in os.listdir(self.image_dir):
@@ -71,10 +72,18 @@ class CasiaIrisDataset(Dataset):
     def loadItem(self, idx):
         # Load image file
         image_paths = self.image_paths[idx]
-        image =  Image.open(image_paths).convert('RGB')
+        image =  cv2.imread(image_paths, cv2.IMREAD_GRAYSCALE)
 
         # Load label
         label = self.labels[idx]
+
+        res = centerIris(image, 'left' if label > 999 else 'right')
+
+        if res is not None:
+            image = res
+        else:
+            print(f"Error: Image {image_paths} not centered")
+            image = cv2.resize(image, (256, 256))
 
         # Apply transformations
         if len(self.transform) > 0:

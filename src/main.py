@@ -1,9 +1,11 @@
+import cv2
 import torch
 from torch.utils.data import random_split, DataLoader
 from torchvision import transforms as tt
 from src.data.CasiaIrisDataset import CasiaIrisDataset
 from src.lib.cnn import Net
 from src.lib.cnn_utils import trainModel, to_device, save_model, testIdentificationSystem
+from src.utils.irisExtractor import IrisExtractor
 
 if __name__=="__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -15,7 +17,7 @@ if __name__=="__main__":
     modelPath = ".\\models\\model.pth"
 
     train_percentage = 0.8
-    transform = tt.Compose([tt.CenterCrop(128), tt.ToTensor()])
+    transform = tt.Compose([tt.ToTensor()])
 
     dataset = CasiaIrisDataset(datasetPath, transform=[transform])
 

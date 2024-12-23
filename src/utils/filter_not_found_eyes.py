@@ -3,8 +3,8 @@ import pandas as pd
 
 def filter_not_found_eyes():
     # File paths
-    file_plain_casia = "data/datasets/iris_thousands.csv"  # First file
-    file_normalized_casia = "normalized/output.csv"  # Second file containing matching indices
+    file_plain_casia = "F:\\Dataset\\Casia\\iris_thousands.csv"  # First file
+    file_normalized_casia = "F:\\Dataset\\Casia\\output.csv"  # Second file containing matching indices
 
     # Read the CSV files
     # Specify `header=0` (default) and use `Unnamed: 0` for the first column
@@ -26,8 +26,8 @@ def filter_not_found_eyes():
     filtered_df = df1[df1['index'].isin(df2['index'])]
 
     # Save the filtered DataFrame to a new CSV
-    output_file = "filtered_file.csv"
-    filtered_df.to_csv(output_file, index=False)
+    output_file = "F:\\Dataset\\Casia\\iris_thousands-filtered.csv"
+    filtered_df.to_csv(output_file, index=True, columns=['Label','ImagePath'], header=True)
 
     print(f"Filtered data saved to: {output_file}")
 

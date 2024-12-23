@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 
 class Net(nn.Module):
-    def __init__(self, input_size=(128, 128)):
+    def __init__(self, input_size=(256, 256)):
         super(Net, self).__init__()
         self.conv_layers = nn.Sequential(
             # Layer 1: Conv1
-            nn.Conv2d(3, 96, kernel_size=11, stride=4, padding=0),
+            nn.Conv2d(1, 96, kernel_size=11, stride=4, padding=0),
             nn.ReLU(inplace=True),
             # Layer 2: MaxPool1
             nn.MaxPool2d(kernel_size=3, stride=2),
@@ -23,7 +23,7 @@ class Net(nn.Module):
         )
 
         # Calculate the flattened size of the final convolutional output
-        test_input = torch.zeros(1, 3, *input_size)  # Batch size 1, input channels 3
+        test_input = torch.zeros(1, 1, *input_size)  # Batch size 1, input channels 1
         conv_output_size = self.conv_layers(test_input).view(1, -1).size(1)
 
         # Fully Connected Layers
