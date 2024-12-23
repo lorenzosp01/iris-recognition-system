@@ -1,19 +1,12 @@
-import numpy as np
 import torch
 import torch.nn.functional as F
 from src.lib.cnn import Net
 from sklearn.metrics import (
-    confusion_matrix,
-    ConfusionMatrixDisplay,
     accuracy_score,
     precision_score,
     recall_score,
-    f1_score,
-    roc_curve,
-    roc_auc_score
+    f1_score
 )
-
-
 
 def save_model(model_path, model):
     torch.save(model.state_dict(), model_path)
@@ -35,9 +28,9 @@ def to_device(data, device):
 
 def trainModel(device, net, train_dl, num_epochs, learning_rate=1e-3):
     optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate)
-    loss_fn = torch.nn.TripletMarginWithDistanceLoss(distance_function=lambda x, y: 1.0 - F.cosine_similarity(x, y))
+    loss_fn = torch.nn.TripletMarginWithDistanceLoss(distance_function=lambda x, y: 1.0 - F.cosine_similarity(x, y), margin=0.2)
 
-    print("Start training")
+    print("Starting train")
     for epoch in range(num_epochs):
         net.train()
         for batch in train_dl:
@@ -63,28 +56,49 @@ def trainModel(device, net, train_dl, num_epochs, learning_rate=1e-3):
         del negatives
         del batch
 
-def testModel(device, net, test_dl):
-    y_test = []
-    prob = []
+def testIdentificationSystem(device, net, test_dl, threshold=0.35):
+    net.eval()  # Modalità di valutazione (disabilita dropout e batch norm)
+
+    all_labels = []  # Etichette reali (identità)
+    all_predictions = []  # Predizioni
+
     with torch.no_grad():
-        for data in test_dl:
-            images, labels = data
-            images, labels = to_device(images, device), to_device(labels, device)
+        for batch in test_dl:
+            anchors = to_device(batch[0], device)  # Immagine dell'anchor
+            anchor_labels = batch[4]  # Etichetta dell'anchor (identità)
+            # La parte del percorso anchor_path non è necessaria, lo includiamo solo se vuoi
+            # anchor_paths = batch[2]
 
-            outputs = net(images)
-            _, predicted = torch.max(outputs.data, 1)
-            y_test.extend(labels.cpu().numpy())
-            prob.extend(torch.nn.functional.softmax(outputs.cpu(), dim=1)[:, 1])
-        fprChest, tprChest, thresholds = roc_curve(y_test, prob)
-        roc_aucChest = roc_auc_score(y_test, prob)
+            # Calcola l'output (embedding) per l'anchor
+            anchor_outputs = net(anchors)
 
-        distances = np.sqrt(fprChest ** 2 + (1 - tprChest) ** 2)
-        best_threshold = thresholds[np.argmin(distances)]
-        new_preds = [1 if score > best_threshold else 0 for score in prob]
+            # Confronta con tutte le immagini nel test set (o un subset se troppo grande)
+            for test_batch in test_dl:  # Loop attraverso tutto il test set per confronto
+                test_anchors = to_device(test_batch[0], device)
+                test_labels = test_batch[4]
 
-        cm = confusion_matrix(y_test, new_preds)
-        dispChest = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["NEGATIVE", "POSITIVE"])
-        accuracyChest = accuracy_score(y_test, new_preds)
-        precisionChest = precision_score(y_test, new_preds)
-        recallChest = recall_score(y_test, new_preds)
-        f1Chest = f1_score(y_test, new_preds)
+                # Calcola gli embeddings per gli altri esempi nel test set
+                test_outputs = net(test_anchors)
+
+                # Calcola la distanza (1 - cosine similarity) tra l'anchor e gli altri esempi
+                distances = 1 - F.cosine_similarity(anchor_outputs, test_outputs)
+
+                # Predizione: se la distanza è sotto la soglia, sono della stessa identità
+                predictions = distances < threshold
+
+                # Aggiungi le etichette reali e le predizioni
+                all_labels.extend(anchor_labels.cpu().numpy())
+                all_predictions.extend(predictions.cpu().numpy())
+
+    # Calcola le metriche
+    accuracy = accuracy_score(all_labels, all_predictions)
+    precision = precision_score(all_labels, all_predictions)
+    recall = recall_score(all_labels, all_predictions)
+    f1 = f1_score(all_labels, all_predictions)
+
+    print(f"Accuracy: {accuracy:.4f}")
+    print(f"Precision: {precision:.4f}")
+    print(f"Recall: {recall:.4f}")
+    print(f"F1-Score: {f1:.4f}")
+
+    return accuracy, precision, recall, f1
