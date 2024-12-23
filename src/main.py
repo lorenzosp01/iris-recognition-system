@@ -31,6 +31,3 @@ if __name__=="__main__":
     print(type(negative), negative.shape)
     print(type(anchor_label), anchor_label.shape)
 
-
-    net = to_device(Net(), device)
-    trainModel(device, net, train_dataloader, num_epochs=10, learning_rate=1e-3)
