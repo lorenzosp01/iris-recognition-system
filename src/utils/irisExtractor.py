@@ -43,3 +43,5 @@ def centerIris(image, eyeSide, scale=1, output_size=(256, 256)):
         cropped_image = scaled_image[y_offset:y_offset + output_height, x_offset:x_offset + output_width]
 
         return cropped_image
+    else:
+        return None
