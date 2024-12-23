@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn.functional as F
 from src.lib.cnn import Net
@@ -50,18 +51,17 @@ def trainModel(device, net, train_dl, num_epochs, learning_rate=1e-3):
             negative_outputs = net(negatives)
 
             loss = loss_fn(anchor_outputs, positive_outputs, negative_outputs)
-            loss.requires_grad = True
             loss.backward()
             optimizer.step()
-            print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {loss.item()}")
-            del loss
-            del anchor_outputs
-            del positive_outputs
-            del negative_outputs
-            del anchors
-            del positives
-            del negatives
-            del batch
+        print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {loss.item()}")
+        del loss
+        del anchor_outputs
+        del positive_outputs
+        del negative_outputs
+        del anchors
+        del positives
+        del negatives
+        del batch
 
 def testModel(device, net, test_dl):
     y_test = []

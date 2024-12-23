@@ -26,7 +26,7 @@ class CasiaIrisDataset(Dataset):
                     if img.endswith('.jpg'):
                         self.image_paths.append(os.path.join(self.image_dir, user, eye, img))
                         eyeN = 0 if "L" in eye else 1
-                        label =f"{user}{eyeN}"
+                        label = int(user) + (eyeN*1000)
                         self.labels.append(label)
                         count += 1
 
@@ -71,7 +71,7 @@ class CasiaIrisDataset(Dataset):
     def loadItem(self, idx):
         # Load image file
         image_paths = self.image_paths[idx]
-        image =  Image.open(image_paths).convert('L')
+        image =  Image.open(image_paths).convert('RGB')
 
         # Load label
         label = self.labels[idx]
