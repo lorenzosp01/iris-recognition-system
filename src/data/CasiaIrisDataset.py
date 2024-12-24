@@ -3,7 +3,7 @@ import cv2
 import pandas as pd
 import os
 from torch.utils.data import Dataset
-from src.utils.irisExtractor import centerIris
+from src.utils.irisExtractor import get_cropped_iris_image
 
 
 class CasiaIrisDataset(Dataset):
@@ -76,14 +76,6 @@ class CasiaIrisDataset(Dataset):
 
         # Load label
         label = self.labels[idx]
-
-        res = centerIris(image, 'left' if label > 999 else 'right')
-
-        if res is not None:
-            image = res
-        else:
-            print(f"Error: Image {image_paths} not centered")
-            image = cv2.resize(image, (256, 256))
 
         # Apply transformations
         if len(self.transform) > 0:
