@@ -31,30 +31,28 @@ def trainModel(device, net, train_dl, num_epochs, learning_rate=1e-3):
     loss_fn = torch.nn.TripletMarginWithDistanceLoss(distance_function=lambda x, y: 1.0 - F.cosine_similarity(x, y), margin=0.2)
 
     print("Starting train")
+    net.train()
     for epoch in range(num_epochs):
-        net.train()
         for batch in train_dl:
             anchors = to_device(batch[0], device)
             positives = to_device(batch[1], device)
             negatives = to_device(batch[2], device)
+            print("Passed to device")
             optimizer.zero_grad()
 
             anchor_outputs = net(anchors)
             positive_outputs = net(positives)
             negative_outputs = net(negatives)
+            print("Outputs calculated")
 
             loss = loss_fn(anchor_outputs, positive_outputs, negative_outputs)
+            print("Loss calculated")
             loss.backward()
+            print("Backward")
             optimizer.step()
+            print("Step")
+            ##TODO Porco dio si rompe qua
         print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {loss.item()}")
-        del loss
-        del anchor_outputs
-        del positive_outputs
-        del negative_outputs
-        del anchors
-        del positives
-        del negatives
-        del batch
 
 def testIdentificationSystem(device, net, test_dl, threshold=0.35):
     net.eval()  # Modalità di valutazione (disabilita dropout e batch norm)

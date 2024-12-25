@@ -28,10 +28,10 @@ class Net(nn.Module):
 
         # Fully Connected Layers
         self.fc_layers = nn.Sequential(
-            nn.Linear(conv_output_size, 4096),  # Flattened size from the final MaxPool
+            nn.Linear(conv_output_size, 1024),  # Flattened size from the final MaxPool
             nn.ReLU(inplace=True),
             nn.Dropout(0.5),
-            nn.Linear(4096, 4096),
+            nn.Linear(1024, 1024),
             nn.ReLU(inplace=True),
             nn.Dropout(0.5)  # Output layer
         )

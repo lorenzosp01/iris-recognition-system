@@ -1,25 +1,37 @@
+import json
 import random
 import cv2
 import pandas as pd
 import os
+
+from iris import IrisTemplate
 from torch.utils.data import Dataset
 from src.utils.irisExtractor import get_cropped_iris_image
 
 
 class CasiaIrisDataset(Dataset):
-    def __init__(self, root_dir, transform=[]):
+    def __init__(self, root_dir, transform=[], centered=False, normalized=False, encoding=False):
         self.root_dir = root_dir
-        self.image_dir = os.path.join(root_dir, "CASIA-Iris-Thousand")
+        if centered:
+            self.image_dir = os.path.join(root_dir, "CASIA-Iris-Thousand-Centered")
+        elif normalized:
+            self.image_dir = os.path.join(root_dir, "CASIA-Iris-Thousand-Normalized")
+        elif encoding:
+            self.image_dir = os.path.join(root_dir, "CASIA-Iris-Thousand-Encoded")
+        else:
+            raise ValueError("No dataset type specified")
+
         self.transform = transform
         self.image_paths = []
         self.labels = []
         self.labeldict = {}
         self.filedict = {}
         self.train_mode = False
-        self.data = pd.read_csv(os.path.join(root_dir, 'iris_thousands.csv'))
+        self.data = pd.read_csv(os.path.join(root_dir, 'iris_thousands_updated.csv'))
         print(f"Dataset size: {len(self.data)}")
 
         count = 0
+        print("Loading dataset...")
         for user in os.listdir(self.image_dir):
             for eye in os.listdir(os.path.join(self.image_dir, user)):
                 subdir_path = os.path.join(user, eye)
@@ -71,15 +83,18 @@ class CasiaIrisDataset(Dataset):
 
     def loadItem(self, idx):
         # Load image file
-        image_paths = self.image_paths[idx]
-        image =  cv2.imread(image_paths, cv2.IMREAD_GRAYSCALE)
-
+        image_paths = os.path.join(self.image_dir, self.image_paths[idx])
         # Load label
         label = self.labels[idx]
+        if "Encoded" in self.image_dir:
+            with open(image_paths) as f:
+                image = IrisTemplate.deserialize(json.load(f))
+        else:
+            image =  cv2.imread(image_paths, cv2.IMREAD_GRAYSCALE)
 
-        # Apply transformations
-        if len(self.transform) > 0:
-            transform_idx = idx // len(self.data)
-            image = self.transform[transform_idx](image)
+            # Apply transformations
+            if len(self.transform) > 0:
+                transform_idx = idx // len(self.data)
+                image = self.transform[transform_idx](image)
 
         return image, label, image_paths
