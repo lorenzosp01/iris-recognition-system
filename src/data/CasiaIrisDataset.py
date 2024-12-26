@@ -1,12 +1,10 @@
 import json
 import random
-import cv2
+from PIL import Image
 import pandas as pd
 import os
-
 from iris import IrisTemplate
 from torch.utils.data import Dataset
-from src.utils.irisExtractor import get_cropped_iris_image
 
 
 class CasiaIrisDataset(Dataset):
@@ -62,6 +60,15 @@ class CasiaIrisDataset(Dataset):
     def eval(self):
         self.train_mode = False
 
+    def get_user_ids(self):
+        user_ids = []
+        for label in self.labels:
+            # Extract the unique user ID from the label
+            # Assuming labels are structured such that user ID is encoded directly as the first part of the label
+            user_id = label % 1000  # Extracts user ID (ignoring left/right eye distinction)
+            user_ids.append(user_id)
+        return user_ids
+
     def __getitem__(self, idx):
         anchor, anchor_label, anchor_path = self.loadItem(idx)
         if not self.train_mode:
@@ -90,7 +97,7 @@ class CasiaIrisDataset(Dataset):
             with open(image_paths) as f:
                 image = IrisTemplate.deserialize(json.load(f))
         else:
-            image =  cv2.imread(image_paths, cv2.IMREAD_GRAYSCALE)
+            image =  Image.open(image_paths)
 
             # Apply transformations
             if len(self.transform) > 0:

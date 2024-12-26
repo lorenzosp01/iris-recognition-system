@@ -1,52 +1,64 @@
-import cv2
 import torch
-from torch.utils.data import random_split, DataLoader
+from sklearn.model_selection import train_test_split
+from torch.utils.data import Subset, DataLoader
 from torchvision import transforms as tt
 from src.data.CasiaIrisDataset import CasiaIrisDataset
 from src.lib.cnn import Net
-from src.lib.cnn_utils import trainModel, to_device, save_model, testIdentificationSystem
+from src.lib.cnn_utils import trainModel, save_model, testIdentificationSystem, load_model
 
 if __name__=="__main__":
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f'Using device: {device}')
-
     datasetPath = "F:\\Dataset\\Casia"
 
     saveModel = True
     modelPath = ".\\models\\model.pth"
 
-    train_percentage = 0.8
-    transform = tt.Compose([tt.ToTensor()])
+    transform = tt.Compose([tt.Resize((128, 128)),
+                               tt.ToTensor()])
 
     dataset = CasiaIrisDataset(datasetPath, transform=[transform], centered=True)
 
-    dataset.train()
-
-    seed = 2024
+    seed = 20
     torch.manual_seed(seed)
 
     print("Splitting dataset...")
-    train_size = int(train_percentage * len(dataset))  # portion for training
-    test_size = len(dataset) - train_size  # remaining portion for testing
-    train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
+    all_user_ids = dataset.get_user_ids()
+    unique_users = list(set(all_user_ids))
 
-    # Assume your dataset is already loaded
-    train_dataloader = DataLoader(dataset=train_dataset, batch_size=64, shuffle=True, num_workers=16)
+    train_users, test_users = train_test_split(
+        unique_users, test_size=0.2, random_state=seed
+    )
 
-    a, a2, n, l = next(iter(train_dataloader))
-    print(a.shape)
-    print(a2.shape)
-    print(n.shape)
-    print(l)
+    train_indices = [i for i, user_id in enumerate(all_user_ids) if user_id in train_users]
+    test_indices = [i for i, user_id in enumerate(all_user_ids) if user_id in test_users]
 
-    net = to_device(Net(), device)
-    trainModel(device, net, train_dataloader, num_epochs=10, learning_rate=1e-3)
+    train_dataset = Subset(dataset, train_indices)
+    test_dataset = Subset(dataset, test_indices)
+
+    print("Training dataset size:", len(train_dataset))
+    print("Testing dataset size:", len(test_dataset))
+
+    dataset.train()
 
     if saveModel:
-        save_model(modelPath, net)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True, num_workers=8, pin_memory=True, pin_memory_device='cuda')
 
-    test_dataloader = DataLoader(dataset=test_dataset, batch_size=64, shuffle=False, num_workers=16)
+        net = Net().to('cuda')
+        trainModel('cuda', net, train_dataloader, num_epochs=10, learning_rate=1e-3)
 
-    testIdentificationSystem(device, net, test_dataloader)
+
+        if saveModel:
+            print("Saving model...")
+            save_model(modelPath, net)
+    else:
+        net = load_model(modelPath)
+        if net is None:
+            print("Model not found")
+            exit(1)
+        net.to('cuda')
+
+    test_dataloader = DataLoader(dataset=test_dataset, batch_size=32, num_workers=8, pin_memory=True, pin_memory_device='cuda')
+
+    print("Testing identification system...")
+    testIdentificationSystem('cuda', net, test_dataloader)
 
 

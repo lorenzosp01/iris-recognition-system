@@ -1,5 +1,7 @@
 import torch
 import torch.nn.functional as F
+from tqdm import tqdm
+
 from src.lib.cnn import Net
 from sklearn.metrics import (
     accuracy_score,
@@ -20,39 +22,48 @@ def load_model(model_path):
     except FileNotFoundError:
         return None
 
-def to_device(data, device):
-    """Move tensor(s) to chosen device"""
-    if isinstance(data, (list,tuple)):
-        return [to_device(x, device) for x in data]
-    return data.to(device, non_blocking=True)
-
 def trainModel(device, net, train_dl, num_epochs, learning_rate=1e-3):
+    # Optimizer and loss function initialization
     optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate)
-    loss_fn = torch.nn.TripletMarginWithDistanceLoss(distance_function=lambda x, y: 1.0 - F.cosine_similarity(x, y), margin=0.2)
+    loss_fn = torch.nn.TripletMarginWithDistanceLoss(distance_function=lambda x, y: 1.0 - F.cosine_similarity(x, y),
+                                                     margin=0.2)
 
-    print("Starting train")
+    # Set the model to training mode
     net.train()
-    for epoch in range(num_epochs):
-        for batch in train_dl:
-            anchors = to_device(batch[0], device)
-            positives = to_device(batch[1], device)
-            negatives = to_device(batch[2], device)
-            print("Passed to device")
-            optimizer.zero_grad()
+    loss_values = []
+    print("Starting training...")
 
+    for epoch in range(num_epochs):
+        # Initialize epoch loss for logging
+        epoch_loss = 0
+
+        # Loop through the training data loader
+        for batch in tqdm(train_dl, desc=f"Processing batches in epoch {epoch + 1}", unit="batch"):
+
+            anchors, positives, negatives, _ = batch
+            # Move data to device (GPU or CPU)
+            anchors = anchors.to('cuda')
+            positives = positives.to('cuda')
+            negatives = negatives.to('cuda')
+
+            optimizer.zero_grad()  # Zero out gradients from the previous step
+
+            # Forward pass
             anchor_outputs = net(anchors)
             positive_outputs = net(positives)
             negative_outputs = net(negatives)
-            print("Outputs calculated")
 
+            # Calculate the triplet loss
             loss = loss_fn(anchor_outputs, positive_outputs, negative_outputs)
-            print("Loss calculated")
+            # Backward pass and optimization step
             loss.backward()
-            print("Backward")
             optimizer.step()
-            print("Step")
-            ##TODO Porco dio si rompe qua
-        print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {loss.item()}")
+
+            epoch_loss += loss.item()
+
+        loss_values.append(epoch_loss / len(train_dl))
+        # Optional: Print epoch loss after processing all batches
+        print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(train_dl)}")
 
 def testIdentificationSystem(device, net, test_dl, threshold=0.35):
     net.eval()  # Modalità di valutazione (disabilita dropout e batch norm)
@@ -62,8 +73,8 @@ def testIdentificationSystem(device, net, test_dl, threshold=0.35):
 
     with torch.no_grad():
         for batch in test_dl:
-            anchors = to_device(batch[0], device)  # Immagine dell'anchor
-            anchor_labels = batch[4]  # Etichetta dell'anchor (identità)
+            anchors = batch[0].to('cuda')  # Immagine dell'anchor
+            anchor_labels = batch[3]  # Etichetta dell'anchor (identità)
             # La parte del percorso anchor_path non è necessaria, lo includiamo solo se vuoi
             # anchor_paths = batch[2]
 
@@ -72,8 +83,7 @@ def testIdentificationSystem(device, net, test_dl, threshold=0.35):
 
             # Confronta con tutte le immagini nel test set (o un subset se troppo grande)
             for test_batch in test_dl:  # Loop attraverso tutto il test set per confronto
-                test_anchors = to_device(test_batch[0], device)
-                test_labels = test_batch[4]
+                test_anchors = test_batch[0].to('cuda')
 
                 # Calcola gli embeddings per gli altri esempi nel test set
                 test_outputs = net(test_anchors)
@@ -87,6 +97,14 @@ def testIdentificationSystem(device, net, test_dl, threshold=0.35):
                 # Aggiungi le etichette reali e le predizioni
                 all_labels.extend(anchor_labels.cpu().numpy())
                 all_predictions.extend(predictions.cpu().numpy())
+                del test_anchors
+                del test_outputs
+                del distances
+                del predictions
+                torch.cuda.empty_cache()
+            del anchors
+            del anchor_labels
+            del anchor_outputs
 
     # Calcola le metriche
     accuracy = accuracy_score(all_labels, all_predictions)
