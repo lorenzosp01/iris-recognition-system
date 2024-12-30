@@ -1,19 +1,21 @@
 import torch
 from sklearn.model_selection import train_test_split
-from torch.utils.data import Subset, DataLoader, random_split
-from torchvision import transforms as tt
-from src.data.CasiaIrisDataset import CasiaIrisDataset
+from torch import nn
+from torch.utils.data import Subset, DataLoader
+from torchvision import transforms as tt, models
+from torchvision.models import ResNet50_Weights
+
+from src.data.CasiaIrisDataset import CasiaIrisDataset, split_dataset_gallery_test
 from src.lib.cnn import Net
 from src.lib.cnn_utils import trainModel, save_model, testIdentificationSystem, load_model
 
 if __name__=="__main__":
     datasetPath = "F:\\Dataset\\Casia"
 
-    saveModel = False
-    modelPath = ".\\models\\model.pth"
+    saveModel = True
+    modelPath = ".\\models\\model256.pth"
 
-    transform = tt.Compose([tt.Resize((128, 128)),
-                               tt.ToTensor()])
+    transform = tt.Compose([tt.ToTensor()])
 
     dataset = CasiaIrisDataset(datasetPath, transform=[transform], centered=True)
 
@@ -40,10 +42,10 @@ if __name__=="__main__":
     dataset.train()
 
     if saveModel:
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=128, shuffle=True, num_workers=4, pin_memory=False)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=False)
 
         net = Net().to('cuda')
-        trainModel('cuda', net, train_dataloader, num_epochs=30, learning_rate=1e-3)
+        trainModel(net, train_dataloader, num_epochs=10, learning_rate=1e-3)
 
 
         if saveModel:
@@ -58,15 +60,13 @@ if __name__=="__main__":
 
     dataset.eval()
 
-    # Lengths for test and gallery splits
-    test_len = int(0.2 * len(test_dataset))  # 20%
-    gallery_len = len(test_dataset) - test_len  # 80%
+    gallery, test = split_dataset_gallery_test(test_dataset, gallery_ratio=0.6, seed=seed)
 
-    # Randomly split the test dataset
-    test_split, gallery_split = random_split(test_dataset, [test_len, gallery_len])
+    gallery = Subset(test_dataset, gallery)
+    test = Subset(test_dataset, test)
 
-    test_dataset = DataLoader(dataset=test_split, batch_size=32, num_workers=4, pin_memory=False)
-    gallery_dataset = DataLoader(dataset=gallery_split, batch_size=32, num_workers=4, pin_memory=False)
+    gallery_dataset = DataLoader(dataset=gallery, batch_size=32, shuffle=False, num_workers=4, pin_memory=False)
+    test_dataset = DataLoader(dataset=test, batch_size=32, shuffle=False, num_workers=4, pin_memory=False)
 
     print("Testing identification system...")
     print(testIdentificationSystem(net, test_dataset, gallery_dataset))

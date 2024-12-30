@@ -1,42 +1,33 @@
-import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from torchvision import models
+from torchvision.models import ResNet50_Weights
+
 
 class Net(nn.Module):
-    def __init__(self, input_size=(128, 128)):
+    def __init__(self):
         super(Net, self).__init__()
-        self.conv_layers = nn.Sequential(
-            # Layer 1: Conv1
-            nn.Conv2d(1, 96, kernel_size=11, stride=4, padding=0),
-            nn.BatchNorm2d(96),
-            nn.ReLU(inplace=True),
-            # Layer 2: MaxPool1
-            nn.MaxPool2d(kernel_size=3, stride=2),
-            # Layer 3: Conv2
-            nn.Conv2d(96, 256, kernel_size=5, stride=1, padding=2),
-            nn.BatchNorm2d(256),
-            nn.ReLU(inplace=True),
-            # Layer 4: MaxPool2
-            nn.MaxPool2d(kernel_size=3, stride=2),
-            # Layer 5: Conv3
-            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(inplace=True),
-            # Layer 6: MaxPool3
-            nn.MaxPool2d(kernel_size=3, stride=2)
+        # Load ResNet50
+        self.net = models.resnet50(weights=ResNet50_Weights.DEFAULT)
+
+        # Modify the first convolutional layer for single-channel input
+        self.net.conv1 = nn.Conv2d(
+            in_channels=1,
+            out_channels=64,
+            kernel_size=(7, 7),
+            stride=(2, 2),
+            padding=(3, 3),
+            bias=False
         )
 
-        # Fully Connected Layers
-        self.fc_layers = nn.Sequential(
-            nn.Linear(1024, 4096),  # Flattened size from the final MaxPool
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.5),
-            nn.Linear(4096, 4096),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.5),
-        )
+        # Modify the fully connected layer
+        self.net.fc = nn.Linear(in_features=2048, out_features=2048, bias=True)
 
     def forward(self, x):
-        x = self.conv_layers(x)
-        x = x.view(x.size(0), -1)
-        x = self.fc_layers(x)
+        # Forward pass through ResNet50
+        x = self.net(x)
+
+        # Apply L2 normalization
+        x = F.normalize(x, p=2, dim=1)  # Normalize across the feature dimension
+
         return x
