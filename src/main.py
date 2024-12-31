@@ -12,7 +12,7 @@ from lib.cnn_utils import trainModel, save_model, testIdentificationSystem, load
 if __name__=="__main__":
     datasetPath = "../../../bigdata/Casia"
 
-    saveModel = True
+    saveModel = False
     modelPath = "./models/model.pth"
 
     transform = tt.Compose([tt.ToTensor()])
@@ -63,10 +63,10 @@ if __name__=="__main__":
     gallery = Subset(test_dataset, gallery)
     test = Subset(test_dataset, test)
 
-    gallery_dataset = DataLoader(dataset=gallery, batch_size=32, shuffle=False, num_workers=4, pin_memory=False)
-    test_dataset = DataLoader(dataset=test, batch_size=32, shuffle=False, num_workers=4, pin_memory=False)
+    gallery_dataset = DataLoader(dataset=gallery, batch_size=8, shuffle=False, num_workers=4, pin_memory=False)
+    test_dataset = DataLoader(dataset=test, batch_size=8, shuffle=False, num_workers=4, pin_memory=False)
 
     print("Testing identification system...")
-    print(testIdentificationSystem(net, test_dataset, gallery_dataset))
+    testIdentificationSystem(net, test_dataset, gallery_dataset)
 
 

@@ -90,98 +90,114 @@ def trainModel(net, train_dl, num_epochs, learning_rate=1e-3):
     plt.grid()
     plt.show()
 
-def testIdentificationSystem(net, test_dl, gallery_dl, threshold=0.01):
-    """
-    Test the identification system and compute EER, FRR, and Rank-1.
+def testIdentificationSystem(net, test_dl, gallery_dl):
+    TG = len(test_dl.dataset)  # Total genuine samples
+    TI = len(gallery_dl.dataset)  # Total impostor samples
 
-    Args:
-        net (torch.nn.Module): The trained model used to generate embeddings.
-        test_dl (DataLoader): DataLoader for the test dataset.
-        gallery_dl (DataLoader): DataLoader for the gallery dataset.
-        threshold (float): Threshold for cosine similarity to determine matches.
+    # Initialize metrics
+    DI = {}  # Dictionary to store DI(t, k)
+    FA = {}  # False Accept for each threshold
+    GR = {}  # Genuine Reject for each threshold
 
-    Returns:
-        dict: A dictionary containing EER, FRR, and Rank-1 metrics.
-    """
-    net.eval()  # Set the model to evaluation mode
-
-    # Step 1: Generate gallery embeddings
-    print("Generating gallery embeddings...")
-    gallery_embeddings = []
+    # Extract features for the gallery
+    gallery_features = []
     gallery_labels = []
+    for batch in gallery_dl:
+        images, labels = batch[0].to('cuda'), batch[1].to('cuda')
+        with torch.no_grad():
+            features = net(images)
+        gallery_features.append(features)
+        gallery_labels.extend(labels)
+        del batch, images, labels
+        torch.cuda.empty_cache()
 
-    with torch.no_grad():
-        for batch in tqdm(gallery_dl, desc="Gallery Embedding Generation"):
-            inputs, labels = batch[0].to('cuda'), batch[1]  # Images and labels
-            outputs = net(inputs)  # Generate embeddings
-            gallery_embeddings.append(outputs.cpu())
-            gallery_labels.extend(labels.numpy())
+    gallery_features = torch.cat(gallery_features).cuda()
+    gallery_labels = torch.tensor(gallery_labels).cuda()
 
-    gallery_embeddings = torch.cat(gallery_embeddings, dim=0)  # Combine into a single tensor
-    gallery_labels = torch.tensor(gallery_labels)
+    # Loop over the test dataset
+    for batch in test_dl:
+        test_images, test_labels = batch[0].to('cuda'), batch[1].to('cuda')
+        with torch.no_grad():
+            test_features = net(test_images)
+        del test_images
 
-    # Step 2: Generate test embeddings and compute matches
-    print("Generating test embeddings and evaluating...")
-    all_scores = []
-    all_ground_truths = []
-    rank1_matches = 0
-    total_tests = 0
+        for i, test_feature in enumerate(test_features):
+            label_i = test_labels[i]
 
-    with torch.no_grad():
-        for batch in tqdm(test_dl, desc="Test Evaluation"):
-            inputs, labels = batch[0].to('cuda'), batch[1]  # Test images and labels
-            test_embeddings = net(inputs)  # Generate embeddings
+            # Compute cosine similarity with gallery features
+            similarities = F.cosine_similarity(test_feature.unsqueeze(0), gallery_features, dim=1)
+            distances = 1 - similarities  # Convert to distance
 
-            # Compare test embeddings with gallery embeddings
-            for i, test_embedding in enumerate(test_embeddings):
-                # Compute cosine similarity between test embedding and all gallery embeddings
-                distances = 1 - F.cosine_similarity(test_embedding.unsqueeze(0), gallery_embeddings.to('cuda'), dim=1)
+            # Sort gallery entries by distance
+            sorted_indices = torch.argsort(distances)
+            sorted_distances = distances[sorted_indices]
+            sorted_labels = gallery_labels[sorted_indices]
 
-                # Find the gallery embedding with the minimum distance
-                sorted_indices = torch.argsort(distances)
-                min_index = sorted_indices[0]
+            for t in torch.arange(0, 1.1, 0.1):  # Thresholds from 0 to 1 with step 0.1
+                if t not in DI:
+                    DI[t] = [0] * 10
+                    FA[t] = 0
+                    GR[t] = 0
 
-                # Rank-1 evaluation
-                if gallery_labels[min_index] == labels[i]:
-                    rank1_matches += 1
+                k = 1
 
-                total_tests += 1
+                # Check the closest match
+                if sorted_distances[0] <= t:
+                    if sorted_labels[0] == label_i:
+                        DI[t][0] += 1  # Genuine match at rank 1
+                    else:
+                        FA[t] += 1  # Impostor accepted
 
-                # Save the score (distance) and ground truth for EER/FRR calculation
-                all_scores.append(distances[min_index].cpu().item())
-                all_ground_truths.append((gallery_labels[min_index] == labels[i]).item())
+                # Look for higher ranks
+                while k < 10:
+                    if k >= len(sorted_distances):
+                        break
 
-    # Step 3: Compute EER, FRR, and Rank-1
-    all_scores = np.array(all_scores)
-    all_ground_truths = np.array(all_ground_truths)
+                    if sorted_labels[k] == label_i and sorted_distances[k] <= t:
+                        DI[t][k] += 1  # Genuine match at rank k
+                        break
+                    elif sorted_labels[k] != label_i and sorted_distances[k] <= t:
+                        FA[t] += 1  # Impostor accepted
+                    k += 1
 
-    # Rank-1 accuracy
-    rank1_accuracy = rank1_matches / total_tests
+                if k == len(sorted_distances) or sorted_distances[k] > t:
+                    GR[t] += 1  # Genuine reject
+        del test_labels
+        del batch
+        torch.cuda.empty_cache()
 
-    # ROC Curve and EER
-    fpr, tpr, thresholds = roc_curve(all_ground_truths, -all_scores)  # Negate scores for correct ROC order
-    fnr = 1 - tpr
-    eer_threshold_index = np.nanargmin(np.abs(fnr - fpr))
-    eer = (fpr[eer_threshold_index] + fnr[eer_threshold_index]) / 2
+    # Calculate metrics
+    DIR = {t: [DI[t][k] / TG if k < len(DI[t]) else 0 for k in range(10)] for t in DI}
+    FRR = {t: 1 - DIR[t][0] for t in DIR}
+    FAR = {t: FA[t] / TI for t in DI}
+    GRR = {t: GR[t] / TI for t in DI}
 
-    # FRR at a specific threshold
-    predictions = (all_scores < threshold).astype(int)
-    frr = 1 - np.mean(predictions[all_ground_truths == 1])
+    # Plot FAR and FRR vs. Threshold
+    thresholds = list(DIR.keys())
+    FRR_values = [FRR[t] for t in thresholds]
+    FAR_values = [FAR[t] for t in thresholds]
 
-    # Plot ROC Curve
-    roc_auc = auc(fpr, tpr)
-    plt.figure()
-    plt.plot(fpr, tpr, label=f'ROC Curve (AUC = {roc_auc:.2f})')
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('ROC Curve')
-    plt.legend(loc='lower right')
+    plt.figure(figsize=(10, 5))
+
+    # Plot FAR and FRR
+    plt.plot(thresholds, FRR_values, label='FRR(t)', color='red')
+    plt.plot(thresholds, FAR_values, label='FAR(t)', color='blue')
+    plt.xlabel('Threshold (t)')
+    plt.ylabel('Error Rate')
+    plt.title('FRR and FAR vs Threshold')
+    plt.axvline(x=thresholds[FRR_values.index(min(FRR_values, key=lambda x: abs(x - FAR_values[FRR_values.index(x)])))], color='black', linestyle='--', label='EER')
+    plt.legend()
     plt.grid()
     plt.show()
 
-    # Return metrics
-    return {
-        "EER": eer,
-        "FRR": frr,
-        "Rank-1": rank1_accuracy
-    }
+    # Plot ROC Curve
+    plt.figure(figsize=(10, 5))
+    plt.plot(FAR_values, [1 - fr for fr in FRR_values], label='ROC Curve', color='green')
+    plt.xlabel('FAR')
+    plt.ylabel('True Acceptance Rate (1 - FRR)')
+    plt.title('ROC Curve')
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+    return DIR, FRR, FAR, GRR
