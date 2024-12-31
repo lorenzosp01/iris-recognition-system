@@ -5,15 +5,15 @@ from torch.utils.data import Subset, DataLoader
 from torchvision import transforms as tt, models
 from torchvision.models import ResNet50_Weights
 
-from src.data.CasiaIrisDataset import CasiaIrisDataset, split_dataset_gallery_test
-from src.lib.cnn import Net
-from src.lib.cnn_utils import trainModel, save_model, testIdentificationSystem, load_model
+from data.CasiaIrisDataset import CasiaIrisDataset, split_dataset_gallery_test
+from lib.cnn import Net
+from lib.cnn_utils import trainModel, save_model, testIdentificationSystem, load_model
 
 if __name__=="__main__":
-    datasetPath = "F:\\Dataset\\Casia"
+    datasetPath = "../../../bigdata/Casia"
 
     saveModel = True
-    modelPath = ".\\models\\model256.pth"
+    modelPath = "./models/model.pth"
 
     transform = tt.Compose([tt.ToTensor()])
 
@@ -47,10 +47,8 @@ if __name__=="__main__":
         net = Net().to('cuda')
         trainModel(net, train_dataloader, num_epochs=10, learning_rate=1e-3)
 
-
-        if saveModel:
-            print("Saving model...")
-            save_model(modelPath, net)
+        print("Saving model...")
+        save_model(modelPath, net)
     else:
         net = load_model(modelPath)
         if net is None:

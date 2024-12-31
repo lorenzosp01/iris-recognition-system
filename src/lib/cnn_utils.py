@@ -3,8 +3,8 @@ import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-
-from src.lib.cnn import Net
+import os
+from lib.cnn import Net
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
@@ -13,6 +13,15 @@ from sklearn.metrics import (
 )
 
 def save_model(model_path, model):
+    # Get the directory from the file path
+    directory = os.path.dirname(model_path)
+    
+    # Check if the directory exists
+    if not os.path.exists(directory):
+        # Create the directory if it does not exist
+        os.makedirs(directory)
+        print(f"Directory created: {directory}")
+    
     torch.save(model.state_dict(), model_path)
 
 def load_model(model_path):
@@ -36,6 +45,10 @@ def trainModel(net, train_dl, num_epochs, learning_rate=1e-3):
     print("Starting training...")
 
     for epoch in range(num_epochs):
+
+        if epoch%3 == 0:
+            saveModel(f"./models/model-epoch-{epoch}.pth", net)
+
         # Initialize epoch loss for logging
         epoch_loss = 0
         # Loop through the training data loader
