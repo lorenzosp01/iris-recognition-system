@@ -87,7 +87,6 @@ def trainModel(net, train_dl, num_epochs, learning_rate=1e-3):
     plt.grid()
     plt.show()
 
-
 def cosine_distance(x1, x2):
     """Compute cosine distance between two tensors"""
     # Ensure the inputs are 2D (batch_size x embedding_size)
@@ -112,8 +111,22 @@ def generate_embeddings(net, dataloader, device='cuda'):
     return torch.cat(embeddings_list, dim=0), torch.cat(labels_list, dim=0)
 
 def plot_far_frr_roc(FAR, FRR, GRR, threshold_step=0.01):
-    print(type(FAR))
-    print(type(FRR))
+
+    # Generate synthetic thresholds
+    t = np.arange(0, 1.0+threshold_step, threshold_step)
+
+    # Find Equal Error Rate (EER)
+    bestMatch = 1
+    for thres in t:
+        if FRR[thres] == FAR[thres]:
+            eer = FRR[thres]
+            eer_threshold = t[thres]
+            break
+        elif abs(FRR[thres] - FAR[thres]) < bestMatch:
+                bestMatch = abs(FRR[thres] - FAR[thres])
+                eer = (FRR[thres] + FAR[thres]) / 2
+                eer_threshold = thres
+
     # Ensure FAR and FRR are arrays
     if isinstance(FAR, dict):
         FAR = np.array(list(FAR.values()))
@@ -130,21 +143,6 @@ def plot_far_frr_roc(FAR, FRR, GRR, threshold_step=0.01):
     elif not isinstance(GRR, np.ndarray):
         GRR = np.array(GRR)
 
-    # Generate synthetic thresholds
-    t = np.arange(0, 1.0+threshold_step, threshold_step)
-
-    # Find Equal Error Rate (EER)
-    bestMatch = 1
-    for i in range(len(FAR)):
-        if FRR[i] == FAR[i]:
-            eer = FRR[i]
-            eer_threshold = t[i]
-            break
-        elif abs(FRR[i] - FAR[i]) < bestMatch:
-                bestMatch = abs(FRR[i] - FAR[i])
-                eer = (FRR[i] + FAR[i]) / 2
-                eer_threshold = t[i]
-
     # Find ZeroFAR and ZeroFRR points
     zero_far_index = np.where(FAR <= 0.01)[0][0] if np.any(FAR <= 0.01) else -1
     zero_frr_index = np.where(FRR <= 0.01)[0][-1] if np.any(FRR <= 0.01) else -1
@@ -152,7 +150,7 @@ def plot_far_frr_roc(FAR, FRR, GRR, threshold_step=0.01):
     # Plot FAR and FRR curves
     plt.figure()
     plt.plot(t, FAR, label="FAR(t)", color="blue")
-    plt.plot(t, FRR, label="FRR(t)", color="black")
+    plt.plot(t, FRR, label="FRR(t)", color="green")
 
     # Highlight EER, ZeroFAR, and ZeroFRR points
     plt.scatter(eer_threshold, eer, color="red", label="EER: {:.2f}".format(eer))
@@ -164,11 +162,13 @@ def plot_far_frr_roc(FAR, FRR, GRR, threshold_step=0.01):
     # Annotations
     plt.annotate("EER", (eer_threshold, eer), textcoords="offset points", xytext=(-20, 10), ha='center', color='red')
     if zero_far_index != -1:
-        plt.annotate("ZeroFAR", (t[zero_far_index], FAR[zero_far_index]), textcoords="offset points", xytext=(-30, -15),
+        plt.annotate("ZeroFAR", (t[zero_far_index], FRR[zero_far_index]), textcoords="offset points", xytext=(-30, -15),
                      ha='center', color='blue')
+        plt.axvline(x=t[zero_far_index], linestyle="--", color="blue", alpha=0.7)
     if zero_frr_index != -1:
-        plt.annotate("ZeroFRR", (t[zero_frr_index], FRR[zero_frr_index]), textcoords="offset points", xytext=(-30, -15),
-                     ha='center', color='blue')
+        plt.annotate("ZeroFRR", (t[zero_frr_index], FAR[zero_frr_index]), textcoords="offset points", xytext=(-30, -15),
+                     ha='center', color='green')
+        plt.axvline(x=t[zero_frr_index], linestyle="--", color="green", alpha=0.7)
 
     # Plot formatting for FAR, FRR
     plt.axvline(x=eer_threshold, linestyle="--", color="gray", alpha=0.7)
@@ -193,7 +193,6 @@ def plot_far_frr_roc(FAR, FRR, GRR, threshold_step=0.01):
     plt.plot(FAR, tpr_sorted, color='green', lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
     plt.xlabel("False Positive Rate (FAR)")
     plt.ylabel("True Positive Rate (1 - FRR)")
-    plt.ylim([0, 1.05])
     plt.title("ROC Curve")
     plt.plot([0, 1], [0, 1], linestyle="--", color="gray", alpha=0.7)  # Diagonal line for random classifier
     plt.legend()
@@ -240,9 +239,9 @@ def identification_test_all_vs_all(net, all_vs_all_dataset, threshold_step=0.01)
     FA = {t: 0 for t in thresholds}  # False accept counts
     GR = {t: 0 for t in thresholds}  # Genuine reject counts
     DIR = {t: [] for t in thresholds}  # Genuine identification rate
-    FRR = {t: [] for t in thresholds}  # False rejection rate
-    FAR = {t: [] for t in thresholds}  # False acceptance rate
-    GRR = {t: [] for t in thresholds}  # Genuine rejection rate
+    FRR = {t: float(0) for t in thresholds}  # False rejection rate
+    FAR = {t: float(0) for t in thresholds}  # False acceptance rate
+    GRR = {t: float(0) for t in thresholds}  # Genuine rejection rate
 
     # Iterate over each threshold0
     for t in thresholds:

@@ -11,7 +11,7 @@ if __name__=="__main__":
     datasetPath = "F:\\Dataset\\Casia"
 
     saveModel = False
-    modelPath = "..\\models\\model.pth"
+    modelPath = "..\\models\\modelFullEyeMargin0.2.pth"
 
     transform = tt.Compose([tt.ToTensor()])
 
