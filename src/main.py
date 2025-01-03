@@ -1,19 +1,17 @@
 import torch
 from sklearn.model_selection import train_test_split
-from torch import nn
 from torch.utils.data import Subset, DataLoader
-from torchvision import transforms as tt, models
-from torchvision.models import ResNet50_Weights
-
+from torchvision import transforms as tt
 from data.CasiaIrisDataset import CasiaIrisDataset, split_dataset_gallery_test
 from lib.cnn import Net
-from lib.cnn_utils import trainModel, save_model, testIdentificationSystem, load_model
+from lib.cnn_utils import trainModel, save_model, load_model, identification_test_all_vs_all
+from src.lib.cnn_utils import plot_far_frr_roc
 
 if __name__=="__main__":
-    datasetPath = "../../../bigdata/Casia"
+    datasetPath = "F:\\Dataset\\Casia"
 
     saveModel = False
-    modelPath = "./models/model.pth"
+    modelPath = "..\\models\\model.pth"
 
     transform = tt.Compose([tt.ToTensor()])
 
@@ -42,7 +40,7 @@ if __name__=="__main__":
     dataset.train()
 
     if saveModel:
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=False)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True, num_workers=8, pin_memory=False)
 
         net = Net().to('cuda')
         trainModel(net, train_dataloader, num_epochs=10, learning_rate=1e-3)
@@ -58,15 +56,26 @@ if __name__=="__main__":
 
     dataset.eval()
 
-    gallery, test = split_dataset_gallery_test(test_dataset, gallery_ratio=0.6, seed=seed)
+    all_vs_all_dataset = DataLoader(dataset=test_dataset, batch_size=64, shuffle=False, num_workers=8, pin_memory=False)
 
-    gallery = Subset(test_dataset, gallery)
-    test = Subset(test_dataset, test)
+    DI, FA, GR, DIR, FRR, FAR, GRR = identification_test_all_vs_all(net, all_vs_all_dataset, threshold_step=0.01)
 
-    gallery_dataset = DataLoader(dataset=gallery, batch_size=8, shuffle=False, num_workers=4, pin_memory=False)
-    test_dataset = DataLoader(dataset=test, batch_size=8, shuffle=False, num_workers=4, pin_memory=False)
+    plot_far_frr_roc(FAR, FRR, GRR)
 
-    print("Testing identification system...")
-    testIdentificationSystem(net, test_dataset, gallery_dataset)
+
+    #gallery, test = split_dataset_gallery_test(test_dataset, gallery_ratio=0.6, seed=seed)
+
+    #gallery = Subset(test_dataset, gallery)
+    #test = Subset(test_dataset, test)
+
+    #gallery_dataset = DataLoader(dataset=gallery, batch_size=32, shuffle=False, num_workers=4, pin_memory=False)
+    #probe_dataset = DataLoader(dataset=test, batch_size=32, shuffle=False, num_workers=4, pin_memory=False)
+
+    #print("Testing identification system...")
+    #metrics = identification_test(net, probe_dataset, gallery_dataset)
+
+
+
+
 
 
