@@ -46,6 +46,7 @@ def trainModel(net, train_dl, num_epochs, learning_rate=1e-3):
         if epoch%3 == 0:
             save_model(f"./models/model-epoch-{epoch}.pth", net)
 
+
         # Initialize epoch loss for logging
         epoch_loss = 0
         # Loop through the training data loader
