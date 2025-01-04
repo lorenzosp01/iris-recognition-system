@@ -68,10 +68,13 @@ def simple_hamming_distance(
 
     return best_dist, rot_shift
 
-
 def compute_distance_matrix(
         probe_templates: list,  # List of IrisTemplate objects from the probe set
         gallery_templates: list,  # List of IrisTemplate objects from the gallery set
+        rotation_shift: int = 15,
+        normalise: bool = False,
+        norm_mean: float = 0.45,
+        norm_nb_bits: float = 12288
 ) -> torch.Tensor:
     """Compute a distance matrix for all pairs of probe and gallery iris templates.
 
@@ -91,17 +94,24 @@ def compute_distance_matrix(
     distance_matrix = torch.zeros(len(probe_templates), len(gallery_templates),
                                   device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
-    # Wrap the outer loop (probe_templates) in tqdm to show progress
-    for i, probe_template in enumerate(tqdm(probe_templates, desc="Processing Probe Templates", unit="probe")):
-        for j, gallery_template in enumerate(
-                tqdm(gallery_templates, desc="Processing Gallery Templates", unit="gallery", leave=False)):
-            # Call the simple_hamming_distance function to compute the distance for this pair
-            best_dist, _ = simple_hamming_distance(
-                probe_template,
-                gallery_template,
-            )
-            # Store the computed distance in the matrix
-            distance_matrix[i, j] = best_dist
+    # Total number of distance calculations (probe_templates * gallery_templates)
+    total_comparisons = len(probe_templates) * len(gallery_templates)
+
+    # Initialize the progress bar
+    with tqdm(total=total_comparisons, desc="Computing Distance Matrix", unit="comparison") as pbar:
+        # Compute Hamming distance for all pairs of probe and gallery templates
+        for i, probe_template in enumerate(probe_templates):
+            for j, gallery_template in enumerate(gallery_templates):
+                # Call the simple_hamming_distance function to compute the distance for this pair
+                best_dist, _ = simple_hamming_distance(
+                    probe_template,
+                    gallery_template,
+                )
+                # Store the computed distance in the matrix
+                distance_matrix[i, j] = best_dist
+
+                # Update progress bar after each comparison
+                pbar.update(1)
 
     return distance_matrix
 
