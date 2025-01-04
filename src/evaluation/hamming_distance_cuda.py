@@ -35,7 +35,8 @@ def simple_hamming_distance(
     # Move iris_codes and mask_codes to the GPU if not already
     probe_codes = [torch.from_numpy(code).to(device) for code in template_probe.iris_codes]
     gallery_codes = [torch.from_numpy(code).to(device) for code in template_gallery.iris_codes]
-    mask_codes = [torch.from_numpy(mask).to(device) for mask in template_probe.mask_codes]
+    probe_mask_codes = [torch.from_numpy(mask).to(device) for mask in template_probe.mask_codes]
+    gallery_mask_codes = [torch.from_numpy(mask).to(device) for mask in template_gallery.mask_codes]
 
     best_dist = 1
     rot_shift = 0
@@ -47,7 +48,7 @@ def simple_hamming_distance(
         ]
         maskbits = [
             torch.roll(probe_code, current_shift, dims=1) & gallery_code
-            for probe_code, gallery_code in zip(mask_codes, template_gallery.mask_codes)
+            for probe_code, gallery_code in zip(probe_mask_codes, gallery_mask_codes)
         ]
 
         irisbitcount = sum(torch.sum(irisbit & maskbit) for irisbit, maskbit in zip(irisbits, maskbits))
