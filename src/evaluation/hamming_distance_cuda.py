@@ -160,7 +160,7 @@ if __name__ == "__main__":
 
     # Assuming templates is a pre-loaded list of iris templates
     # Check for valid data
-    dataset_dir = "../Casia/CASIA-Iris-Thousand-Encoding"
+    dataset_dir = "F:\\Dataset\\Casia\\CASIA-Iris-Thousand-Encoding"
     templates, labels = get_dataset(dataset_dir)
     num_templates = len(templates)
     if num_templates == 0:

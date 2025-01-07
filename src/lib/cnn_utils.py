@@ -3,7 +3,6 @@ import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist
-from sklearn.metrics import auc, roc_curve, roc_auc_score
 from tqdm import tqdm
 import os
 from lib.cnn import Net
@@ -30,11 +29,11 @@ def load_model(model_path):
     except FileNotFoundError:
         return None
 
-def trainModel(net, train_dl, num_epochs, learning_rate=1e-3):
+def trainModel(net, train_dl, val_dl, num_epochs, learning_rate=1e-3, epoch_checkpoint=1, margin=0.5):
     # Optimizer and loss function initialization
     optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate)
     loss_fn = torch.nn.TripletMarginWithDistanceLoss(distance_function=lambda x, y: 1.0 - F.cosine_similarity(x, y),
-                                                     margin=0.2)
+                                                     margin=margin)
 
     # Set the model to training mode
     net.train()
@@ -43,14 +42,10 @@ def trainModel(net, train_dl, num_epochs, learning_rate=1e-3):
 
     for epoch in range(num_epochs):
 
-        if epoch%3 == 0:
-            save_model(f"./models/model-epoch-{epoch}.pth", net)
-
-
         # Initialize epoch loss for logging
         epoch_loss = 0
         # Loop through the training data loader
-        for batch in tqdm(train_dl, desc=f"Processing batches in epoch {epoch + 1}", unit="batch"):
+        for batch in tqdm(train_dl, desc=f"Processing batches in epoch {epoch}", unit="batch"):
 
             # Move data to device (GPU or CPU)
             anchors = batch[0].to('cuda')
@@ -79,6 +74,11 @@ def trainModel(net, train_dl, num_epochs, learning_rate=1e-3):
         loss_values.append(epoch_loss / len(train_dl))
         # Optional: Print epoch loss after processing all batches
         print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(train_dl)}")
+
+        if epoch%epoch_checkpoint == 0 and epoch != 0:
+            validateModel(net, val_dl, loss_fn)
+            save_model(f"..\\models\\checkpoints\\model_epoch_{epoch}_margin_{margin}_loss_{epoch_loss / len(train_dl)}.pth", net)
+
     plt.figure()
     plt.plot(loss_values, label=f'Loss Curve')
     plt.xlabel('Epoch')
@@ -87,6 +87,32 @@ def trainModel(net, train_dl, num_epochs, learning_rate=1e-3):
     plt.legend(loc='lower right')
     plt.grid()
     plt.show()
+
+def validateModel(net, val_dl, loss_fn):
+    net.eval()
+    val_loss = 0
+
+    with torch.no_grad():
+        for batch in tqdm(val_dl, desc=f"Validating model", unit="batch"):
+            anchors = batch[0].to('cuda')
+            positives = batch[1].to('cuda')
+            negatives = batch[2].to('cuda')
+
+            anchor_outputs = net(anchors)
+            positive_outputs = net(positives)
+            negative_outputs = net(negatives)
+            del anchors, positives, negatives
+
+            loss = loss_fn(anchor_outputs, positive_outputs, negative_outputs)
+            del anchor_outputs, positive_outputs, negative_outputs
+            val_loss += loss.item()
+
+            del batch
+            torch.cuda.empty_cache()
+
+    avg_val_loss = val_loss / len(val_dl)
+    print(f"Validation Loss: {avg_val_loss}")
+    return avg_val_loss
 
 def cosine_distance(x1, x2):
     """Compute cosine distance between two tensors"""
@@ -98,224 +124,100 @@ def cosine_distance(x1, x2):
     sim = F.cosine_similarity(x1, x2, dim=-1)  # Compute cosine similarity over the last dimension
     return 1 - sim  # Cosine distance is 1 - cosine similarity
 
-def generate_embeddings(net, dataloader, device='cuda'):
-    embeddings_list = list()
-    labels_list = list()
-    with torch.no_grad():
-        for images, labels, _ in dataloader:
-            images = images.to(device)
-            embeddings = net(images)
-            embeddings_list.append(embeddings)
-            labels_list.append(labels)
-            del images, embeddings
-            torch.cuda.empty_cache()
-    return torch.cat(embeddings_list, dim=0), torch.cat(labels_list, dim=0)
-
-def plot_far_frr_roc(FAR, FRR, GRR, threshold_step=0.01):
-
-    # Generate synthetic thresholds
-    t = np.arange(0, 1.0+threshold_step, threshold_step)
-
-    # Find Equal Error Rate (EER)
-    bestMatch = 1
-    for thres in t:
-        if FRR[thres] == FAR[thres]:
-            eer = FRR[thres]
-            eer_threshold = t[thres]
-            break
-        elif abs(FRR[thres] - FAR[thres]) < bestMatch:
-                bestMatch = abs(FRR[thres] - FAR[thres])
-                eer = (FRR[thres] + FAR[thres]) / 2
-                eer_threshold = thres
-
-    # Ensure FAR and FRR are arrays
-    if isinstance(FAR, dict):
-        FAR = np.array(list(FAR.values()))
-    elif not isinstance(FAR, np.ndarray):
-        FAR = np.array(FAR)
-
-    if isinstance(FRR, dict):
-        FRR = np.array(list(FRR.values()))
-    elif not isinstance(FRR, np.ndarray):
-        FRR = np.array(FRR)
-
-    if isinstance(GRR, dict):
-        GRR = np.array(list(GRR.values()))
-    elif not isinstance(GRR, np.ndarray):
-        GRR = np.array(GRR)
-
-    # Find ZeroFAR and ZeroFRR points
-    zero_far_index = np.where(FAR <= 0.01)[0][0] if np.any(FAR <= 0.01) else -1
-    zero_frr_index = np.where(FRR <= 0.01)[0][-1] if np.any(FRR <= 0.01) else -1
-
-    # Plot FAR and FRR curves
-    plt.figure()
-    plt.plot(t, FAR, label="FAR(t)", color="blue")
-    plt.plot(t, FRR, label="FRR(t)", color="green")
-
-    # Highlight EER, ZeroFAR, and ZeroFRR points
-    plt.scatter(eer_threshold, eer, color="red", label="EER: {:.2f}".format(eer))
-    if zero_far_index != -1:
-        plt.scatter(t[zero_far_index], FRR[zero_far_index], color="blue", label="ZeroFAR")
-    if zero_frr_index != -1:
-        plt.scatter(t[zero_frr_index], FAR[zero_frr_index], color="blue", label="ZeroFRR")
-
-    # Annotations
-    plt.annotate("EER", (eer_threshold, eer), textcoords="offset points", xytext=(-20, 10), ha='center', color='red')
-    if zero_far_index != -1:
-        plt.annotate("ZeroFAR", (t[zero_far_index], FRR[zero_far_index]), textcoords="offset points", xytext=(-30, -15),
-                     ha='center', color='blue')
-        plt.axvline(x=t[zero_far_index], linestyle="--", color="blue", alpha=0.7)
-    if zero_frr_index != -1:
-        plt.annotate("ZeroFRR", (t[zero_frr_index], FAR[zero_frr_index]), textcoords="offset points", xytext=(-30, -15),
-                     ha='center', color='green')
-        plt.axvline(x=t[zero_frr_index], linestyle="--", color="green", alpha=0.7)
-
-    # Plot formatting for FAR, FRR
-    plt.axvline(x=eer_threshold, linestyle="--", color="gray", alpha=0.7)
-    plt.axhline(y=eer, linestyle="--", color="gray", alpha=0.7)
-    plt.xlabel("t (Threshold)")
-    plt.ylabel("Error")
-    plt.title("FAR, FRR, and EER Curve")
-    plt.legend()
-    plt.grid(alpha=0.3)
-    plt.show()
-
-    # ROC Curve Plot (lower plot)
-    tpr = 1 - FRR  # True Positive Rate
-    # Sort the FAR and TAR values (this ensures FAR is increasing)
-    sorted_indices = np.argsort(FAR)
-    FAR = FAR[sorted_indices]
-    tpr_sorted = tpr[sorted_indices]
-    # AUC calculation
-    roc_auc = auc(FAR, tpr_sorted)
-
-    plt.figure()
-    plt.plot(FAR, tpr_sorted, color='green', lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
-    plt.xlabel("False Positive Rate (FAR)")
-    plt.ylabel("True Positive Rate (1 - FRR)")
-    plt.title("ROC Curve")
-    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", alpha=0.7)  # Diagonal line for random classifier
-    plt.legend()
-    plt.grid(alpha=0.3)
-    plt.show()
-
-    # GRR Plot in a separate graph if provided
-    plt.figure()
-    plt.plot(t, GRR, label="GRR(t)", color="green")
-    plt.xlabel("t (Threshold)")
-    plt.ylabel("Recognition Rate")
-    plt.title("Genuine Recognition Rate (GRR)")
-    plt.legend()
-    plt.grid(alpha=0.3)
-    plt.show()
-
-def identification_test_all_vs_all(net, all_vs_all_dataset, threshold_step=0.01):
-    # Move the model to GPU
-    net.to('cuda')
-    net.eval()
-
+def generate_embeddings(net, dataloader):
     embedding_list = []
     labels_list = []
     with torch.no_grad():
-        for images, labels, _ in tqdm(all_vs_all_dataset, desc="Generating embeddings", total=len(all_vs_all_dataset)):
+        for images, labels, _ in tqdm(dataloader, desc="Generating embeddings", total=len(dataloader)):
             images = images.to('cuda')
             embedding_list.append(net(images).cpu())
             labels_list.extend(labels)
             del images
             torch.cuda.empty_cache()
 
-    embedding_list = torch.cat(embedding_list, dim=0)
-    labels_list = np.array(labels_list)
+    return torch.cat(embedding_list, dim=0), np.array(labels_list)
 
-    G = len(labels_list)
+def identification_test_all_vs_all(net, all_vs_all_dataset, threshold_step=0.01, log=False):
+    # Move the model to GPU
+    net.to('cuda')
+    net.eval()
+
+    embedding_list, labels_list = generate_embeddings(net, all_vs_all_dataset)
 
     embedding_array = embedding_list.numpy()  # Convert the tensor to numpy array for cdist
     distance_matrix = cdist(embedding_array, embedding_array, metric='cosine')
+    M = distance_matrix / 2  # Normalize cosine distance to [0, 1]
 
-    # Initialize metrics for each threshold
-    thresholds = np.arange(0, 1.0+threshold_step, threshold_step)
+    DIR = []
+    GRR = []
+    FAR = []
+    FRR = []
+    THS = []
+    n = len(labels_list)
+    thr = 0
 
-    DI = {t: [] for t in thresholds}  # Genuine case detection counts
-    FA = {t: 0 for t in thresholds}  # False accept counts
-    GR = {t: 0 for t in thresholds}  # Genuine reject counts
-    DIR = {t: [] for t in thresholds}  # Genuine identification rate
-    FRR = {t: float(0) for t in thresholds}  # False rejection rate
-    FAR = {t: float(0) for t in thresholds}  # False acceptance rate
-    GRR = {t: float(0) for t in thresholds}  # Genuine rejection rate
+    # Calcolo dei totali per GAR e FAR
+    # unique_labels = set(labels)
+    while thr <= 1+threshold_step:
+        THS.append(thr)
+        DI = np.zeros(n)
+        GR = 0
+        FA = 0
+        TG = TI = (n - 1)
+        for i in range(n):
+            label_i = labels_list[i]
 
-    # Iterate over each threshold0
-    for t in thresholds:
-        for i in range(G):
-            # Sort distances for each row (ignoring self-comparison)
-            sorted_indices = np.argsort(distance_matrix[i])
-            sorted_distances = distance_matrix[i, sorted_indices]
-            sorted_labels = labels_list[sorted_indices]
+            row_i = M[i, :]
+            row_i[i] = 1.1
+            sorted_row_i = np.argsort(row_i)
+            min_index = sorted_row_i[0]
+            if min_index == i:
+                min_index = sorted_row_i[1]
 
-            # Remove the identity element (self comparison)
-            sorted_distances = sorted_distances[1:]
-            sorted_labels = sorted_labels[1:]
+            if M[i, min_index] <= thr:
+                if labels_list[i] == labels_list[min_index]:
+                    DI[0] += 1
 
-            # Check if the first element is a potential accept
-            if sorted_distances[0] <= t:
-                # Genuine case detected
-                if labels_list[i] == sorted_labels[0]:
-                    if not DI[t]:
-                        DI[t].append(1)  # Genuine identification at rank 1
-                    else:
-                        DI[t][0] += 1  # Genuine identification at rank 1
-                    # Parallel impostor case: find first non-matching label with distance <= t
                     impostor_found = False
-                    for k in range(1, len(sorted_distances)):
-                        if sorted_labels[k] != labels_list[i] and sorted_distances[k] <= t:
-                            FA[t] += 1  # False accept
+                    for k in sorted_row_i:
+                        if M[i, k] <= thr and labels_list[k] != label_i:
+                            FA += 1
                             impostor_found = True
                             break
                     if not impostor_found:
-                        GR[t] += 1  # Genuine reject
-
-                # If not the first rank but a genuine case, look for higher ranks
+                        GR += 1
                 else:
-                    impostor_found = False
-                    for k in range(1, len(sorted_distances)):
-                        if len(DI[t]) < k+1:
-                            DI[t].append(0)
-                        if labels_list[i] == sorted_labels[k] and sorted_distances[k] <= t:
-                            DI[t][k] += 1  # Higher rank genuine identification
-                            impostor_found = True
+                    FA += 1
+                    sub = 0
+                    for k, idx in enumerate(sorted_row_i):
+                        if idx == i:
+                            sub += 1
+                            continue
+                        if M[i, idx] <= thr and labels_list[idx] == label_i:
+                            DI[k - sub] += 1
                             break
-                    if not impostor_found:
-                        FA[t] += 1  # False accept if no match at higher ranks
             else:
-                GR[t] += 1  # Impostor case directly counted
+                GR += 1
 
-        # Compute DIR, FRR, FAR, GRR for each threshold t
-        # DIR(t, k) = DI(t, k) / TG, where TG is the total number of genuine cases
-        TG = len(labels_list)
-        DIR[t].append(DI[t][0] / TG)  # Genuine identification rate at rank 1
-        FRR[t] = 1 - DIR[t][0]  # False rejection rate
+        local_dir = np.zeros(n)
+        for i in range(n):
+            local_dir[i] = (DI[i] / TG) + local_dir[max(i - 1, 0)]
 
-        # FAR(t) = FA / TI, where TI is the total number of impostors
-        TI = TG
-        FAR[t] = FA[t] / TI  # False acceptance rate
+        DIR.append(local_dir)
+        GRR.append(GR / TI)
+        FAR.append(FA / TI)
+        FRR.append(1 - local_dir[0])
 
-        # GRR(t) = GR / TI
-        GRR[t] = GR[t] / TI  # Genuine rejection rate
+        if log:
+            print("Threshold:", thr)
+            print("DIR[0]:", local_dir[0])
+            print("GRR:", GR / TI)
+            print("FAR:", FA / TI)
+            print("FRR:", 1 - local_dir[0])
+            print("--------------")
+        thr += threshold_step
 
-        # Calculate DIR(t, k) for higher ranks
-        k = 1
-        while k <= len(DI[t]) and DI[t][k - 1] != 0:  # Ensure we don't go out of bounds
-            # For k == 1, we just use DI[t][0] / TG
-            if k == 1:
-                DIR[t].append(DI[t][k - 1] / TG)
-            # For k > 1, we use the previous rank value to calculate cumulative DIR
-            elif k > 1 and k - 2 >= 0:
-                DIR[t].append((DI[t][k - 1] / TG) + DIR[t][k - 2])
-            k += 1
-
-    return DI, FA, GR, DIR, FRR, FAR, GRR
-
-
+    return THS, DIR, GRR, FAR, FRR
 
 
 
