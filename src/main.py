@@ -1,9 +1,10 @@
 import numpy as np
-from skimage.filters.rank import threshold
+from scipy.spatial.distance import cdist
 from torch.utils.data import DataLoader
 from torchvision import transforms as tt
 from lib.cnn import Net
-from lib.cnn_utils import trainModel, save_model, load_model, identification_test_all_vs_all
+from lib.cnn_utils import trainModel, save_model, load_model, identification_test_all_vs_all, verification_all_vs_all, \
+    generate_embeddings
 from src.data.CasiaIrisDataset import CasiaIrisDataset
 from src.data.datasetUtils import splitDataset
 from src.utils.plotting import plot_far_frr_roc
@@ -14,7 +15,7 @@ if __name__=="__main__":
     loadModel = True
     training = False
     testing = True
-    modelPath = "..\\models\\checkpoints\\model_epoch_2_margin_0.5_loss_0.041099133393705176.pth"
+    modelPath = "..\\models\\modelNormalizedEyePaddingMargin0.5.pth"
 
     # Calculate the padding
     original_width, original_height = (512, 128)
@@ -24,13 +25,13 @@ if __name__=="__main__":
 
     # Define the transform
     transformNormalized = tt.Compose([
-        #tt.Pad((left_right_padding, top_bottom_padding, left_right_padding, top_bottom_padding), fill=0),
+        tt.Pad((left_right_padding, top_bottom_padding, left_right_padding, top_bottom_padding), fill=0),
         # Add black padding
-        #tt.Resize((256, 256)),  # Resize to 256x256
+        tt.Resize((256, 256)),  # Resize to 256x256
         tt.ToTensor(),  # Convert to tensor
     ])
 
-    dataset = CasiaIrisDataset(datasetPath, transform=[transformNormalized], centered=True)
+    dataset = CasiaIrisDataset(datasetPath, transform=[transformNormalized], normalized=True)
 
     train_dataset, val_dataset, test_dataset = splitDataset(dataset, 0.2, 0.1)
 
@@ -60,9 +61,23 @@ if __name__=="__main__":
 
         all_vs_all_dataset = DataLoader(dataset=test_dataset, batch_size=64, shuffle=False, num_workers=8, pin_memory=False)
 
-        thresholds, DIR, GRR, FAR, FRR = identification_test_all_vs_all(net, all_vs_all_dataset)
+        net.eval()
 
-        plot_far_frr_roc(thresholds, FAR, FRR, GRR, np.array(DIR))
+        embedding_list, labels_list = generate_embeddings(net, all_vs_all_dataset)
+
+        embedding_array = embedding_list.numpy()  # Convert the tensor to numpy array for cdist
+        distance_matrix = cdist(embedding_array, embedding_array, metric='cosine')
+        M = distance_matrix / 2  # Normalize cosine distance to [0, 1]
+
+        thresholds, DIR, GRR, FAR, FRR = identification_test_all_vs_all(M, labels_list, log=True)
+
+        plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=np.array(DIR))
+
+        GARs, FARs, FRRs, GRRs = verification_all_vs_all(M, labels_list, log=True)
+
+        plot_far_frr_roc(thresholds, FARs, FRRs, GRRs, DIR=None)
+
+
 
 
     #gallery, test = split_dataset_gallery_test(test_dataset, gallery_ratio=0.6, seed=seed)

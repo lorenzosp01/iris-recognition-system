@@ -137,16 +137,7 @@ def generate_embeddings(net, dataloader):
 
     return torch.cat(embedding_list, dim=0), np.array(labels_list)
 
-def identification_test_all_vs_all(net, all_vs_all_dataset, threshold_step=0.01, log=False):
-    # Move the model to GPU
-    net.to('cuda')
-    net.eval()
-
-    embedding_list, labels_list = generate_embeddings(net, all_vs_all_dataset)
-
-    embedding_array = embedding_list.numpy()  # Convert the tensor to numpy array for cdist
-    distance_matrix = cdist(embedding_array, embedding_array, metric='cosine')
-    M = distance_matrix / 2  # Normalize cosine distance to [0, 1]
+def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=False):
 
     DIR = []
     GRR = []
@@ -218,6 +209,59 @@ def identification_test_all_vs_all(net, all_vs_all_dataset, threshold_step=0.01,
         thr += threshold_step
 
     return THS, DIR, GRR, FAR, FRR
+
+def verification_all_vs_all(M, labels_list, threshold_step=0.005, log=False):
+
+    # Initialize result lists for thresholds
+    TG = len(set(labels_list))  # Total genuine pairs (one per user)
+    TI = TG * (TG - 1)      # Total impostor pairs
+
+    # Initialize metrics
+    GARs, FARs, FRRs, GRRs = [], [], [], []
+
+    thr = 0
+    while thr <= 1 + threshold_step:
+        GA, FA, FR, GR = 0, 0, 0, 0
+
+        for i in range(len(M)):
+            genuine_label = labels_list[i]
+            min_distances = {}
+
+            # Iterate over all other groups (columns) with the same label
+            for j in range(len(M)):
+                if i == j:
+                    continue
+
+                label_j = labels_list[j]
+                if label_j not in min_distances:
+                    min_distances[label_j] = M[i, j]
+                else:
+                    min_distances[label_j] = min(min_distances[label_j], M[i, j])
+
+            for label, diff in min_distances.items():
+                if diff <= thr:
+                    if label == genuine_label:
+                        GA += 1
+                    else:
+                        FA += 1
+                else:
+                    if label == genuine_label:
+                        FR += 1
+                    else:
+                        GR += 1
+
+        # Calculate rates
+        GARs.append(GA / TG if TG > 0 else 0)
+        FARs.append(FA / TI if TI > 0 else 0)
+        FRRs.append(FR / TG if TG > 0 else 0)
+        GRRs.append(GR / TI if TI > 0 else 0)
+
+        if log:
+            print(f"Threshold: {thr:.2f} | GAR: {GARs[-1]:.4f}, FAR: {FARs[-1]:.4f}, FRR: {FRRs[-1]:.4f}, GRR: {GRRs[-1]:.4f}")
+
+        thr += threshold_step
+
+    return GARs, FARs, FRRs, GRRs
 
 
 

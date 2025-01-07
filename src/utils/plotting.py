@@ -6,7 +6,7 @@ from scipy.optimize import brentq
 from sklearn.metrics import auc
 
 
-def plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR):
+def plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=None):
     # Ensure FAR and FRR are arrays
     if not isinstance(FAR, np.ndarray):
         FAR = np.array(FAR)
@@ -17,7 +17,7 @@ def plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR):
     if not isinstance(GRR, np.ndarray):
         GRR = np.array(GRR)
 
-    if not isinstance(DIR, np.ndarray):
+    if DIR is not None and not isinstance(DIR, np.ndarray):
         DIR = np.array(DIR)
 
     # Interpolation functions for FAR and FRR
@@ -37,7 +37,8 @@ def plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR):
     plt.plot(thresholds, FAR, label="FAR(t)", color="blue")
     plt.plot(thresholds, FRR, label="FRR(t)", color="green")
     plt.plot(thresholds, GRR, linestyle="--", label="GRR(t)", color="purple")
-    plt.plot(thresholds, DIR[:,0], linestyle="--", label=f"Rank-1(EER):", color="orange")
+    if DIR is not None:
+        plt.plot(thresholds, DIR[:,0], linestyle="--", label=f"Rank-1(EER):", color="orange")
 
     # Highlight EER, ZeroFAR, and ZeroFRR points
     plt.scatter(eer_threshold, eer, color="red", label="EER: {:.2f}".format(eer))
