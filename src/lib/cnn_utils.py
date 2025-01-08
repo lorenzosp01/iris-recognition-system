@@ -149,7 +149,7 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
 
     # Calcolo dei totali per GAR e FAR
     # unique_labels = set(labels)
-    while thr <= 1:
+    while thr <= 1 + threshold_step:
         THS.append(thr)
         DI = np.zeros(n)
         GR = 0
@@ -159,19 +159,19 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
             label_i = labels_list[i]
 
             row_i = M[i, :]
-            row_i[i] = 1
+            row_i[i] = 0
             sorted_row_i = np.argsort(row_i)
             min_index = sorted_row_i[0]
             if min_index == i:
                 min_index = sorted_row_i[1]
 
             if M[i, min_index] <= thr:
-                if label_i == labels_list[min_index]:
+                if labels_list[i] == labels_list[min_index]:
                     DI[0] += 1
 
                     impostor_found = False
                     for k in sorted_row_i:
-                        if labels_list[k] != label_i and M[i, k] <= thr:
+                        if M[i, k] <= thr and labels_list[k] != label_i:
                             FA += 1
                             impostor_found = True
                             break
@@ -184,7 +184,7 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
                         if idx == i:
                             sub += 1
                             continue
-                        if labels_list[idx] == label_i and M[i, idx] <= thr:
+                        if M[i, idx] <= thr and labels_list[idx] == label_i:
                             DI[k - sub] += 1
                             break
             else:
@@ -201,7 +201,79 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
 
         if log:
             print("Threshold:", thr)
-            print("DIR[0]:", local_dir[0], "DI[0]:", DI[0]/TG)
+            print("DIR[0]:", local_dir[0])
+            print("GRR:", GR / TI)
+            print("FAR:", FA / TI)
+            print("FRR:", 1 - local_dir[0])
+            print("--------------")
+        thr += threshold_step
+
+    return THS, DIR, GRR, FAR, FRR
+
+def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gallery, threshold_step=0.005, log=False):
+    DIR = []
+    GRR = []
+    FAR = []
+    FRR = []
+    THS = []
+    n = len(labels_lists_probe)
+    thr = 0
+
+    # Calcolo dei totali per GAR e FAR
+    # unique_labels = set(labels)
+    while thr <= 1 + threshold_step:
+        THS.append(thr)
+        DI = np.zeros(n)
+        GR = 0
+        FA = 0
+        TG = TI = n
+        for i in range(n):
+            label_i = labels_lists_probe[i]
+
+            row_i = M[i, :]
+            row_i[i] = 0
+            sorted_row_i = np.argsort(row_i)
+            min_index = sorted_row_i[0]
+            if min_index == i:
+                min_index = sorted_row_i[1]
+
+            if M[i, min_index] <= thr:
+                if label_i == labels_lists_gallery[min_index]:
+                    DI[0] += 1
+
+                    impostor_found = False
+                    for k in sorted_row_i:
+                        if M[i, k] <= thr and labels_lists_gallery[k] != label_i:
+                            FA += 1
+                            impostor_found = True
+                            break
+                    if not impostor_found:
+                        GR += 1
+                else:
+                    FA += 1
+                    sub = 0
+                    for k, idx in enumerate(sorted_row_i):
+                        if idx == i:
+                            sub += 1
+                            continue
+                        if M[i, idx] <= thr and labels_lists_gallery[idx] == label_i:
+                            DI[k - sub] += 1
+                            break
+            else:
+                GR += 1
+
+        local_dir = np.zeros(n)
+        for i in range(n):
+            local_dir[i] = (DI[i] / TG) + local_dir[max(i - 1, 0)]
+
+        DIR.append(local_dir)
+        GRR.append(GR / TI)
+        FAR.append(FA / TI)
+        FRR.append(1 - local_dir[0])
+
+        if log:
+            print("Threshold:", thr)
+            print("DIR[0]:", local_dir[0])
             print("GRR:", GR / TI)
             print("FAR:", FA / TI)
             print("FRR:", 1 - local_dir[0])
@@ -262,6 +334,57 @@ def verification_all_vs_all(M, labels_list, threshold_step=0.005, log=False):
 
     return GARs, FARs, FRRs, GRRs
 
+def verification_probe_vs_gallery(M, labels_lists_probe, labels_lists_gallery, threshold_step=0.005, log=False):
+    # Initialize result lists for thresholds
+    TG = len(labels_lists_probe)  # Total genuine pairs (one per user)
+    TI = TG * (len(set(labels_lists_probe)) - 1)     # Total impostor pairs
+
+    # Initialize metrics
+    GARs, FARs, FRRs, GRRs = [], [], [], []
+
+    thr = 0
+    while thr <= 1 + threshold_step:
+        GA, FA, FR, GR = 0, 0, 0, 0
+
+        for i in range(len(labels_lists_probe)):
+            genuine_label = labels_lists_probe[i]
+            min_distances = {}
+
+            # Iterate over all other groups (columns) with the same label
+            for j in range(len(labels_lists_gallery)):
+                if i == j:
+                    continue
+
+                label_j = labels_lists_gallery[j]
+                if label_j not in min_distances:
+                    min_distances[label_j] = M[i, j]
+                else:
+                    min_distances[label_j] = min(min_distances[label_j], M[i, j])
+
+            for label, diff in min_distances.items():
+                if diff <= thr:
+                    if label == genuine_label:
+                        GA += 1
+                    else:
+                        FA += 1
+                else:
+                    if label == genuine_label:
+                        FR += 1
+                    else:
+                        GR += 1
+
+        # Calculate rates
+        GARs.append(GA / TG if TG > 0 else 0)
+        FARs.append(FA / TI if TI > 0 else 0)
+        FRRs.append(FR / TG if TG > 0 else 0)
+        GRRs.append(GR / TI if TI > 0 else 0)
+
+        if log:
+            print(f"Threshold: {thr:.2f} | GAR: {GARs[-1]:.4f}, FAR: {FARs[-1]:.4f}, FRR: {FRRs[-1]:.4f}, GRR: {GRRs[-1]:.4f}")
+
+        thr += threshold_step
+
+    return GARs, FARs, FRRs, GRRs
 
 
 

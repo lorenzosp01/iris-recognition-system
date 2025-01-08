@@ -22,6 +22,5 @@ models: [
         margin: 0.2,
         loss: TBD,
         epoches: 10,
-        epoches: 10,
     },
 ]

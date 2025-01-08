@@ -1,43 +1,23 @@
 import numpy as np
 from scipy.spatial.distance import cdist
 from sklearn.metrics.pairwise import cosine_similarity
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torchvision import transforms as tt
 from lib.cnn import Net
 from lib.cnn_utils import trainModel, save_model, load_model, identification_test_all_vs_all, verification_all_vs_all, \
-    generate_embeddings
-from src.data.CasiaIrisDataset import CasiaIrisDataset
+    generate_embeddings, identification_test_probe_vs_gallery, verification_probe_vs_gallery
+from src.data.CasiaIrisDataset import CasiaIrisDataset, split_dataset_gallery_test
 from src.data.datasetUtils import splitDataset
 from src.utils.plotting import plot_far_frr_roc
-
-def explain(M, label):
-    for i in range(len(M)):
-        label_i = labels_list[i]
-        media = {}
-
-        # Iterate over all other groups (columns) with the same label
-        for j in range(len(M)):
-            if i == j:
-                continue
-
-            label_j = labels_list[j]
-            if label_j not in media:
-                media[label_j] = [M[i, j]]
-            else:
-                media[label_j].append(M[i, j])
-
-        for label, diff in media.items():
-            print(f"Media of distances between {label_i} and {label}: {np.mean(diff)}")
-        break
 
 
 if __name__=="__main__":
     datasetPath = "F:\\Dataset\\Casia"
 
-    loadModel = False
-    training = True
+    loadModel = True
+    training = False
     testing = True
-    modelPath = "..\\models\\modelNormalizedEyeMargin0.2.pth"
+    modelPath = "..\\models\\modelFullEyeMargin0.2.pth"
 
     # Calculate the padding
     original_width, original_height = (512, 128)
@@ -53,15 +33,11 @@ if __name__=="__main__":
         tt.ToTensor(),  # Convert to tensor
     ])
 
-    transformNormalized = tt.Compose([
-        tt.ToTensor(),  # Convert to tensor
-    ])
-
     transform = tt.Compose([
         tt.ToTensor(),  # Convert to tensor
     ])
 
-    dataset = CasiaIrisDataset(datasetPath, transform=[transformNormalized], normalized=True)
+    dataset = CasiaIrisDataset(datasetPath, transform=[transform], centered=True)
 
     train_dataset, val_dataset, test_dataset = splitDataset(dataset, 0.2, 0.1)
 
@@ -87,6 +63,7 @@ if __name__=="__main__":
         save_model(modelPath, net)
 
     if testing:
+        ## Test the model with all vs all  ------------------------------------------------------------------------------------
         dataset.eval()
 
         all_vs_all_dataset = DataLoader(dataset=test_dataset, batch_size=64, shuffle=False, num_workers=8, pin_memory=False)
@@ -99,28 +76,40 @@ if __name__=="__main__":
         M = - cosine_similarity(embedding_array)
         M = (np.round(M, 4) + 1) / 2  # Normalize the cosine similarity to [0, 1]
 
-        thresholds, DIR, GRR, FAR, FRR = identification_test_all_vs_all(M, labels_list, log=True)
+        thresholds, DIR, GRR, FAR, FRR = identification_test_all_vs_all(M, labels_list)
 
         plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=np.array(DIR))
 
-        #GARs, FARs, FRRs, GRRs = verification_all_vs_all(M, labels_list, log=True)
+        GARs, FARs, FRRs, GRRs = verification_all_vs_all(M, labels_list)
 
-        #plot_far_frr_roc(thresholds, FARs, FRRs, GRRs, DIR=None)
+        plot_far_frr_roc(thresholds, FARs, FRRs, GRRs, DIR=None)
 
+        ## Test the model with all vs all  ------------------------------------------------------------------------------------
 
+        gallery, test = split_dataset_gallery_test(test_dataset, gallery_ratio=0.6, seed=20)
 
+        gallery = Subset(test_dataset, gallery)
+        test = Subset(test_dataset, test)
 
-    #gallery, test = split_dataset_gallery_test(test_dataset, gallery_ratio=0.6, seed=seed)
+        gallery_dataset = DataLoader(dataset=gallery, batch_size=64, shuffle=False, num_workers=4, pin_memory=False)
+        probe_dataset = DataLoader(dataset=test, batch_size=64, shuffle=False, num_workers=4, pin_memory=False)
 
-    #gallery = Subset(test_dataset, gallery)
-    #test = Subset(test_dataset, test)
+        embedding_list_gallery, labels_list_gallery = generate_embeddings(net, gallery_dataset)
+        embedding_list_probe, labels_list_probe = generate_embeddings(net, probe_dataset)
 
-    #gallery_dataset = DataLoader(dataset=gallery, batch_size=32, shuffle=False, num_workers=4, pin_memory=False)
-    #probe_dataset = DataLoader(dataset=test, batch_size=32, shuffle=False, num_workers=4, pin_memory=False)
+        embedding_list_gallery = embedding_list_gallery.numpy()
+        embedding_list_probe = embedding_list_probe.numpy()
 
-    #print("Testing identification system...")
-    #metrics = identification_test(net, probe_dataset, gallery_dataset)
+        M = - cosine_similarity(embedding_list_gallery, embedding_list_probe)
+        M = (np.round(M, 4) + 1) / 2
 
+        thresholds, DIR, GRR, FAR, FRR = identification_test_probe_vs_gallery(M, labels_list_probe, labels_list_gallery)
+
+        plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=np.array(DIR))
+
+        GARs, FARs, FRRs, GRRs = verification_probe_vs_gallery(M, labels_list_probe, labels_list_gallery)
+
+        plot_far_frr_roc(thresholds, FARs, FRRs, GRRs, DIR=None)
 
 
 
