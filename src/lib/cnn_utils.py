@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist
 from tqdm import tqdm
 import os
-from lib.cnn import Net
+
+from src.lib.cnn import Net
 
 
 def save_model(model_path, model):
@@ -157,7 +158,8 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
         DI = np.zeros(n)
         GR = 0
         FA = 0
-        TG = TI = n
+        TG = TI = (n - 1)
+
         for i in range(n):
             label_i = labels_list[i]
 
@@ -172,6 +174,7 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
                 if label_i == labels_list[min_index]:
                     DI[0] += 1
 
+                    # Check for impostor case
                     impostor_found = False
                     for k in sorted_row_i:
                         if M[i, k] <= thr and labels_list[k] != label_i:
