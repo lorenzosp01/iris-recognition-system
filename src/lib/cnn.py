@@ -17,11 +17,12 @@ class Net(nn.Module):
             kernel_size=(7, 7),
             stride=(2, 2),
             padding=(3, 3),
-            bias=False
-        )
+            bias=False)
 
         # Modify the fully connected layer
-        self.net.fc = nn.Linear(in_features=2048, out_features=2048, bias=True)
+        self.net.fc = nn.Linear(
+            in_features=self.net.fc.in_features,
+            out_features=2048, bias=True)
 
     def forward(self, x):
         # Forward pass through ResNet50

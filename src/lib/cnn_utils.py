@@ -29,7 +29,7 @@ def load_model(model_path):
     except FileNotFoundError:
         return None
 
-def trainModel(net, train_dl, val_dl, num_epochs, learning_rate=1e-3, epoch_checkpoint=1, margin=0.5):
+def trainModel(net, train_dl, val_dl, num_epochs, learning_rate=1e-3, epoch_checkpoint=1, margin=0.2):
     # Optimizer and loss function initialization
     optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate)
     loss_fn = torch.nn.TripletMarginWithDistanceLoss(distance_function=lambda x, y: 1.0 - F.cosine_similarity(x, y),
@@ -77,6 +77,7 @@ def trainModel(net, train_dl, val_dl, num_epochs, learning_rate=1e-3, epoch_chec
 
         if epoch%epoch_checkpoint == 0 and epoch != 0:
             validateModel(net, val_dl, loss_fn)
+            net.train()
             save_model(f"..\\models\\checkpoints\\model_epoch_{epoch}_margin_{margin}_loss_{epoch_loss / len(train_dl)}.pth", net)
 
     plt.figure()
@@ -138,7 +139,6 @@ def generate_embeddings(net, dataloader):
     return torch.cat(embedding_list, dim=0), np.array(labels_list)
 
 def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=False):
-
     DIR = []
     GRR = []
     FAR = []
@@ -149,7 +149,7 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
 
     # Calcolo dei totali per GAR e FAR
     # unique_labels = set(labels)
-    while thr <= 1+threshold_step:
+    while thr <= 1:
         THS.append(thr)
         DI = np.zeros(n)
         GR = 0
@@ -159,19 +159,19 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
             label_i = labels_list[i]
 
             row_i = M[i, :]
-            row_i[i] = 1.1
+            row_i[i] = 1
             sorted_row_i = np.argsort(row_i)
             min_index = sorted_row_i[0]
             if min_index == i:
                 min_index = sorted_row_i[1]
 
             if M[i, min_index] <= thr:
-                if labels_list[i] == labels_list[min_index]:
+                if label_i == labels_list[min_index]:
                     DI[0] += 1
 
                     impostor_found = False
                     for k in sorted_row_i:
-                        if M[i, k] <= thr and labels_list[k] != label_i:
+                        if labels_list[k] != label_i and M[i, k] <= thr:
                             FA += 1
                             impostor_found = True
                             break
@@ -184,7 +184,7 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
                         if idx == i:
                             sub += 1
                             continue
-                        if M[i, idx] <= thr and labels_list[idx] == label_i:
+                        if labels_list[idx] == label_i and M[i, idx] <= thr:
                             DI[k - sub] += 1
                             break
             else:
@@ -201,7 +201,7 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
 
         if log:
             print("Threshold:", thr)
-            print("DIR[0]:", local_dir[0])
+            print("DIR[0]:", local_dir[0], "DI[0]:", DI[0]/TG)
             print("GRR:", GR / TI)
             print("FAR:", FA / TI)
             print("FRR:", 1 - local_dir[0])
@@ -211,10 +211,9 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
     return THS, DIR, GRR, FAR, FRR
 
 def verification_all_vs_all(M, labels_list, threshold_step=0.005, log=False):
-
     # Initialize result lists for thresholds
-    TG = len(set(labels_list))  # Total genuine pairs (one per user)
-    TI = TG * (TG - 1)      # Total impostor pairs
+    TG = len(labels_list)  # Total genuine pairs (one per user)
+    TI = TG * (len(set(labels_list)) - 1)     # Total impostor pairs
 
     # Initialize metrics
     GARs, FARs, FRRs, GRRs = [], [], [], []

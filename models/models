@@ -1,0 +1,27 @@
+models: [
+    {
+        fileName: "modelNormalizedEyePaddingMargin0.2Loss0.00571.pth",
+        orginalFileFormat: "normalized",
+        format: "padding",
+        margin: 0.2,
+        loss: 0.00571,
+        epoches: 10,
+    },
+    {
+        fileName: "TBD",
+        orginalFileFormat: "normalized",
+        format: "no-padding",
+        margin: 0.2,
+        loss: TBD,
+        epoches: 10,
+    },
+    {
+        fileName: "TBD",
+        orginalFileFormat: "centered",
+        format: "none",
+        margin: 0.2,
+        loss: TBD,
+        epoches: 10,
+        epoches: 10,
+    },
+]

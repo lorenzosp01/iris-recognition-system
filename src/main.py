@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.spatial.distance import cdist
+from sklearn.metrics.pairwise import cosine_similarity
 from torch.utils.data import DataLoader
 from torchvision import transforms as tt
 from lib.cnn import Net
@@ -9,13 +10,34 @@ from src.data.CasiaIrisDataset import CasiaIrisDataset
 from src.data.datasetUtils import splitDataset
 from src.utils.plotting import plot_far_frr_roc
 
+def explain(M, label):
+    for i in range(len(M)):
+        label_i = labels_list[i]
+        media = {}
+
+        # Iterate over all other groups (columns) with the same label
+        for j in range(len(M)):
+            if i == j:
+                continue
+
+            label_j = labels_list[j]
+            if label_j not in media:
+                media[label_j] = [M[i, j]]
+            else:
+                media[label_j].append(M[i, j])
+
+        for label, diff in media.items():
+            print(f"Media of distances between {label_i} and {label}: {np.mean(diff)}")
+        break
+
+
 if __name__=="__main__":
     datasetPath = "F:\\Dataset\\Casia"
 
-    loadModel = True
-    training = False
+    loadModel = False
+    training = True
     testing = True
-    modelPath = "..\\models\\modelNormalizedEyePaddingMargin0.5.pth"
+    modelPath = "..\\models\\modelNormalizedEyeMargin0.2.pth"
 
     # Calculate the padding
     original_width, original_height = (512, 128)
@@ -24,10 +46,18 @@ if __name__=="__main__":
     left_right_padding = (desired_size - original_width) // 2  # Even padding for left and right
 
     # Define the transform
-    transformNormalized = tt.Compose([
+    transformPadding = tt.Compose([
         tt.Pad((left_right_padding, top_bottom_padding, left_right_padding, top_bottom_padding), fill=0),
         # Add black padding
         tt.Resize((256, 256)),  # Resize to 256x256
+        tt.ToTensor(),  # Convert to tensor
+    ])
+
+    transformNormalized = tt.Compose([
+        tt.ToTensor(),  # Convert to tensor
+    ])
+
+    transform = tt.Compose([
         tt.ToTensor(),  # Convert to tensor
     ])
 
@@ -51,7 +81,7 @@ if __name__=="__main__":
         val_dataloader = DataLoader(dataset=val_dataset, batch_size=32, shuffle=True, num_workers=8, pin_memory=False)
 
         print("Training model...")
-        trainModel(net, train_dataloader, val_dataloader, num_epochs=16, epoch_checkpoint=2, margin=0.5)
+        trainModel(net, train_dataloader, val_dataloader, num_epochs=4, epoch_checkpoint=2, margin=0.5)
 
         print("Saving model...")
         save_model(modelPath, net)
@@ -66,16 +96,16 @@ if __name__=="__main__":
         embedding_list, labels_list = generate_embeddings(net, all_vs_all_dataset)
 
         embedding_array = embedding_list.numpy()  # Convert the tensor to numpy array for cdist
-        distance_matrix = cdist(embedding_array, embedding_array, metric='cosine')
-        M = distance_matrix / 2  # Normalize cosine distance to [0, 1]
+        M = - cosine_similarity(embedding_array)
+        M = (np.round(M, 4) + 1) / 2  # Normalize the cosine similarity to [0, 1]
 
         thresholds, DIR, GRR, FAR, FRR = identification_test_all_vs_all(M, labels_list, log=True)
 
         plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=np.array(DIR))
 
-        GARs, FARs, FRRs, GRRs = verification_all_vs_all(M, labels_list, log=True)
+        #GARs, FARs, FRRs, GRRs = verification_all_vs_all(M, labels_list, log=True)
 
-        plot_far_frr_roc(thresholds, FARs, FRRs, GRRs, DIR=None)
+        #plot_far_frr_roc(thresholds, FARs, FRRs, GRRs, DIR=None)
 
 
 
