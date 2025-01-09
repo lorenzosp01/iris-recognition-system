@@ -1,8 +1,10 @@
 import json
 import sqlite3
+
 import numpy as np
 from iris import IrisTemplate
 from sklearn.metrics.pairwise import cosine_similarity
+
 from src.evaluation.hamming_distance_cuda import simple_hamming_distance
 
 DATABASE_NAME = "iris_app.db"
@@ -124,11 +126,13 @@ def find_top_3_matches(classic_embedding, resnet_embedding, resnet_normalized_em
 
     # Convert resnet embeddings to numpy arrays
     resnet_embedding_gallery_array = np.array(resnet_embedding_gallery)  # Shape: (n_samples, n_features)
-    resnet_normalized_embedding_gallery_array = np.array(resnet_normalized_embedding_gallery)  # Shape: (n_samples, n_features)
+    resnet_normalized_embedding_gallery_array = np.array(
+        resnet_normalized_embedding_gallery)  # Shape: (n_samples, n_features)
 
     # Compute cosine distances
     resnet_distance = compute_cosine_distance(resnet_embedding_gallery_array, resnet_embedding)
-    resnet_normalized_distance = compute_cosine_distance(resnet_normalized_embedding_gallery_array, resnet_normalized_embedding)
+    resnet_normalized_distance = compute_cosine_distance(resnet_normalized_embedding_gallery_array,
+                                                         resnet_normalized_embedding)
 
     # List to store all matches
     all_matches = []
@@ -136,7 +140,7 @@ def find_top_3_matches(classic_embedding, resnet_embedding, resnet_normalized_em
     # Compute distances for each method
     for i in range(len(user_ids)):
         # Classic embedding distance
-        classic_distance = simple_hamming_distance(deserialized_classic_embedding, classic_embedding_gallery[i])
+        classic_distance = simple_hamming_distance(deserialized_classic_embedding, classic_embedding_gallery[i])[0]
 
         # Resnet embedding distance
         resnet_distance_i = resnet_distance[0][i]
@@ -145,7 +149,7 @@ def find_top_3_matches(classic_embedding, resnet_embedding, resnet_normalized_em
         resnet_normalized_distance_i = resnet_normalized_distance[0][i]
 
         # Add all matches to the list
-        # all_matches.append(("classic", classic_distance, user_ids[i]))
+        all_matches.append(("classic", classic_distance, user_ids[i]))
         all_matches.append(("resnet_images", resnet_distance_i, user_ids[i]))
         all_matches.append(("resnet_normalized", resnet_normalized_distance_i, user_ids[i]))
 
@@ -154,7 +158,8 @@ def find_top_3_matches(classic_embedding, resnet_embedding, resnet_normalized_em
 
     # Fetch the top 3 matches
     top_3_matches = []
-    for match in all_matches[:3]:
+    # for match in all_matches[:3]:
+    for match in all_matches:
         method, distance, user_id = match
 
         # Fetch the username for the user
