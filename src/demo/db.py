@@ -1,8 +1,12 @@
-import sqlite3
 import json
-import random
+import sqlite3
+import numpy as np
+from iris import IrisTemplate
+from sklearn.metrics.pairwise import cosine_similarity
+from src.evaluation.hamming_distance_cuda import simple_hamming_distance
 
 DATABASE_NAME = "iris_app.db"
+
 
 def initialize_database():
     """Initialize the SQLite database and create tables if they don't exist."""
@@ -31,18 +35,6 @@ def initialize_database():
     conn.commit()
     conn.close()
 
-def create_embeddings(image, side):
-    """Generate random feature vectors and return them as JSON strings."""
-    classic_embedding = [random.uniform(0, 1) for _ in range(100)]
-    resnet_embedding = [random.uniform(0, 1) for _ in range(100)]
-    resnet_normalized_embedding = [random.uniform(0, 1) for _ in range(100)]
-
-    # Convert lists to JSON strings
-    classic_embedding_str = json.dumps(classic_embedding)
-    resnet_embedding_str = json.dumps(resnet_embedding)
-    resnet_normalized_embedding_str = json.dumps(resnet_normalized_embedding)
-
-    return classic_embedding_str, resnet_embedding_str, resnet_normalized_embedding_str
 
 def insert_user(username, classic_embedding, resnet_embedding, resnet_normalized_embedding):
     """Insert a new user and their feature vectors into the database."""
@@ -71,44 +63,91 @@ def insert_user(username, classic_embedding, resnet_embedding, resnet_normalized
         conn.close()
         return is_new_user
 
-def hamming_distance(v1, v2):
-    """Return a random value between 0 and 1."""
-    return random.random()
 
-def find_top_3_matches(classic_embedding, resnet_embedding, resnet_normalized_embedding):
-    """Find the top 3 closest matches in the database for the given embeddings."""
+def fetch_all_feature_vectors():
+    """Fetch all feature vectors from the database."""
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
 
-    # Fetch all records from the feature_vectors table
     cursor.execute("""
         SELECT userId, classic_embedding, resnet_embedding, resnet_normalized_embedding
         FROM feature_vectors
     """)
     records = cursor.fetchall()
+    conn.close()
+    return records
+
+
+def compute_cosine_distance(embedding_list_gallery, embedding_list_probe):
+    """Compute cosine distance between a gallery of embeddings and a probe embedding."""
+    # Ensure the embeddings are 2D arrays
+    embedding_list_gallery = np.array(embedding_list_gallery)  # Shape: (n_samples, n_features)
+    embedding_list_probe = np.array(embedding_list_probe).reshape(1, -1)  # Shape: (1, n_features)
+
+    # Compute cosine similarity
+    similarity = -cosine_similarity(embedding_list_probe, embedding_list_gallery)
+    distance = (similarity + 1) / 2  # Normalize to [0, 1]
+    return distance
+
+
+def find_top_3_matches(classic_embedding, resnet_embedding, resnet_normalized_embedding):
+    """Find the top 3 closest matches in the database for the given embeddings."""
+    # Deserialize the classic embedding
+    deserialized_classic_embedding = IrisTemplate.deserialize(classic_embedding)
+
+    # Convert resnet embeddings to numpy arrays
+    resnet_embedding = np.array(resnet_embedding)
+    resnet_normalized_embedding = np.array(resnet_normalized_embedding)
+
+    # Fetch all records from the database
+    records = fetch_all_feature_vectors()
+
+    # Lists to store gallery embeddings and user IDs
+    classic_embedding_gallery = []
+    resnet_embedding_gallery = []
+    resnet_normalized_embedding_gallery = []
+    user_ids = []
+
+    # Populate the gallery lists
+    for record in records:
+        user_id, classic_stored, resnet_stored, resnet_normalized_stored = record
+
+        # Deserialize and store classic embeddings
+        classic_embedding_gallery.append(IrisTemplate.deserialize(json.loads(classic_stored)))
+
+        # Deserialize and store resnet embeddings
+        resnet_embedding_gallery.extend(json.loads(resnet_stored))
+        resnet_normalized_embedding_gallery.extend(json.loads(resnet_normalized_stored))
+
+        # Store user IDs
+        user_ids.append(user_id)
+
+    # Convert resnet embeddings to numpy arrays
+    resnet_embedding_gallery_array = np.array(resnet_embedding_gallery)  # Shape: (n_samples, n_features)
+    resnet_normalized_embedding_gallery_array = np.array(resnet_normalized_embedding_gallery)  # Shape: (n_samples, n_features)
+
+    # Compute cosine distances
+    resnet_distance = compute_cosine_distance(resnet_embedding_gallery_array, resnet_embedding)
+    resnet_normalized_distance = compute_cosine_distance(resnet_normalized_embedding_gallery_array, resnet_normalized_embedding)
 
     # List to store all matches
     all_matches = []
 
-    for record in records:
-        user_id, classic_stored, resnet_stored, resnet_normalized_stored = record
+    # Compute distances for each method
+    for i in range(len(user_ids)):
+        # Classic embedding distance
+        classic_distance = simple_hamming_distance(deserialized_classic_embedding, classic_embedding_gallery[i])
 
-        # Compute distances for each method
-        # TODO Implement the actual distance calculation of the hamming distance
-        classic_distance = hamming_distance(
-            classic_embedding, json.loads(classic_stored)
-        )
-        resnet_distance = hamming_distance(
-            resnet_embedding, json.loads(resnet_stored)
-        )
-        resnet_normalized_distance = hamming_distance(
-            resnet_normalized_embedding, json.loads(resnet_normalized_stored)
-        )
+        # Resnet embedding distance
+        resnet_distance_i = resnet_distance[0][i]
+
+        # Normalized resnet embedding distance
+        resnet_normalized_distance_i = resnet_normalized_distance[0][i]
 
         # Add all matches to the list
-        all_matches.append(("classic", classic_distance, user_id))
-        all_matches.append(("resnet_images", resnet_distance, user_id))
-        all_matches.append(("resnet_normalized", resnet_normalized_distance, user_id))
+        # all_matches.append(("classic", classic_distance, user_ids[i]))
+        all_matches.append(("resnet_images", resnet_distance_i, user_ids[i]))
+        all_matches.append(("resnet_normalized", resnet_normalized_distance_i, user_ids[i]))
 
     # Sort all matches by distance
     all_matches.sort(key=lambda x: x[1])
@@ -119,14 +158,12 @@ def find_top_3_matches(classic_embedding, resnet_embedding, resnet_normalized_em
         method, distance, user_id = match
 
         # Fetch the username for the user
+        conn = sqlite3.connect(DATABASE_NAME)
+        cursor = conn.cursor()
         cursor.execute("SELECT username FROM users WHERE id = ?", (user_id,))
         username = cursor.fetchone()[0]
+        conn.close()
 
-        top_3_matches.append({
-            "method": method,
-            "distance": distance,
-            "label": username
-        })
+        top_3_matches.append({"method": method, "distance": distance, "label": username})
 
-    conn.close()
     return top_3_matches

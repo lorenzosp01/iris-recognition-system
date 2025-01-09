@@ -71,8 +71,6 @@ def process_eye_image(eye_image, eye_side, device="cpu"):
 
         # Serialize the iris template (if it's binary data, encode it as base64)
         iris_template = pipeline_output["iris_template"].serialize()
-        if isinstance(iris_template, bytes):
-            iris_template = base64.b64encode(iris_template).decode("utf-8")  # Encode binary data as base64 string
 
         # Prepare the output dictionary with separate keys
         output_dict = {"full_eye_prediction": json.dumps(full_eye_prediction),  # Serialize prediction

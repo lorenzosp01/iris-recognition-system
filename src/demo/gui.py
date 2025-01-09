@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QLineEdit, QPushButt
                              QFileDialog, QMessageBox, QGroupBox, QStackedWidget, QTableWidget, QTableWidgetItem,
                              QHeaderView, QComboBox)
 
-from db import initialize_database, create_embeddings, insert_user, find_top_3_matches
+from db import initialize_database, insert_user, find_top_3_matches
 from src.demo.image_processing import process_image
 
 
@@ -104,12 +104,11 @@ class LoginPage(QWidget):
             return
 
         # Generate random embeddings
-        # TODO: Replace with actual embeddings
-        classic_embedding_str, resnet_embedding_str, resnet_normalized_embedding_str = create_embeddings(
-            self.image_path, self.switch_input.currentText().lower())
-        classic_embedding = json.loads(classic_embedding_str)
-        resnet_embedding = json.loads(resnet_embedding_str)
-        resnet_normalized_embedding = json.loads(resnet_normalized_embedding_str)
+        output = process_image(self.image_path, self.switch_input.currentText().lower())
+
+        classic_embedding = json.loads(output["iris_template_output"])
+        resnet_embedding = json.loads(output["full_eye_prediction"])
+        resnet_normalized_embedding = json.loads(output["normalized_iris_prediction"])
 
         # Find the top 3 matches
         top_3_matches = find_top_3_matches(classic_embedding, resnet_embedding, resnet_normalized_embedding)
