@@ -149,9 +149,9 @@ def find_top_3_matches(classic_embedding, resnet_embedding, resnet_normalized_em
         resnet_normalized_distance_i = resnet_normalized_distance[0][i]
 
         # Add all matches to the list
-        all_matches.append(("classic", classic_distance, user_ids[i]))
-        all_matches.append(("resnet_images", resnet_distance_i, user_ids[i]))
-        all_matches.append(("resnet_normalized", resnet_normalized_distance_i, user_ids[i]))
+        all_matches.append(("OpenIrisLibrary", classic_distance, user_ids[i]))
+        all_matches.append(("Full Eye ResNet", resnet_distance_i, user_ids[i]))
+        all_matches.append(("Normalized Eye ResNet", resnet_normalized_distance_i, user_ids[i]))
 
     # Sort all matches by distance
     all_matches.sort(key=lambda x: x[1])
