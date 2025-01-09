@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QLineEdit, QPushButt
                              QHeaderView, QComboBox)
 
 from db import initialize_database, create_embeddings, insert_user, find_top_3_matches
+from src.demo.image_processing import process_image
 
 
 class LoginPage(QWidget):
@@ -228,15 +229,10 @@ class RegisterPage(QWidget):
             return
 
         # Create embeddings
-        # TODO: Replace with actual embeddings
-
-        print(self.switch_input.currentText().lower())
-
-        classic_embedding, resnet_embedding, resnet_normalized_embedding = create_embeddings(image_path,
-                                                                                             self.switch_input.currentText().lower())
+        output = process_image(image_path, self.switch_input.currentText().lower())
 
         # Insert into the database
-        is_new_user = insert_user(username, classic_embedding, resnet_embedding, resnet_normalized_embedding)
+        is_new_user = insert_user(username, output["iris_template_output"], output["full_eye_prediction"], output["normalized_iris_prediction"])
         if is_new_user:
             QMessageBox.information(self, 'Success', 'User registered successfully!')
         else:
