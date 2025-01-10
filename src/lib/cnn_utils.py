@@ -228,7 +228,7 @@ def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gal
 
     # Calcolo dei totali per GAR e FAR
     # unique_labels = set(labels)
-    while thr <= 1 + threshold_stqep:
+    while thr <= 1 + threshold_step:
         THS.append(thr)
         DI = np.zeros(len(labels_lists_gallery))
         GR = 0
