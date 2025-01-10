@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.spatial.distance import cdist
 from sklearn.metrics.pairwise import cosine_similarity
 from torch.utils.data import DataLoader, Subset
 from torchvision import transforms as tt
@@ -17,21 +16,7 @@ if __name__=="__main__":
     loadModel = True
     training = False
     testing = True
-    modelPath = "..\\models\\modelFullEyeMargin0.2.pth"
-
-    # Calculate the padding
-    original_width, original_height = (512, 128)
-    desired_size = max(original_width, original_height)  # Make the image square
-    top_bottom_padding = (desired_size - original_height) // 2  # Even padding for top and bottom
-    left_right_padding = (desired_size - original_width) // 2  # Even padding for left and right
-
-    # Define the transform
-    transformPadding = tt.Compose([
-        tt.Pad((left_right_padding, top_bottom_padding, left_right_padding, top_bottom_padding), fill=0),
-        # Add black padding
-        tt.Resize((256, 256)),  # Resize to 256x256
-        tt.ToTensor(),  # Convert to tensor
-    ])
+    modelPath = "..\\models\\modelFullEyeMargin0.4Loss0.01256.pth"
 
     transform = tt.Compose([
         tt.ToTensor(),  # Convert to tensor
@@ -57,7 +42,7 @@ if __name__=="__main__":
         val_dataloader = DataLoader(dataset=val_dataset, batch_size=32, shuffle=True, num_workers=8, pin_memory=False)
 
         print("Training model...")
-        trainModel(net, train_dataloader, val_dataloader, num_epochs=4, epoch_checkpoint=2, margin=0.5)
+        training_loss, validation_loss = trainModel(net, train_dataloader, val_dataloader, num_epochs=16, epoch_checkpoint=2, margin=0.4)
 
         print("Saving model...")
         save_model(modelPath, net)
@@ -66,7 +51,7 @@ if __name__=="__main__":
         ## Test the model with all vs all  ------------------------------------------------------------------------------------
         dataset.eval()
 
-        all_vs_all_dataset = DataLoader(dataset=test_dataset, batch_size=64, shuffle=False, num_workers=8, pin_memory=False)
+        all_vs_all_dataset = DataLoader(dataset=test_dataset, batch_size=32, num_workers=8, pin_memory=True)
 
         net.eval()
 
@@ -74,7 +59,8 @@ if __name__=="__main__":
 
         embedding_array = embedding_list.numpy()  # Convert the tensor to numpy array for cdist
         M = - cosine_similarity(embedding_array)
-        M = (np.round(M, 4) + 1) / 2  # Normalize the cosine similarity to [0, 1]
+        M = np.round(M, 3)
+        M = (M + 1) / 2  # Normalize the cosine similarity to [0, 1]
 
         thresholds, DIR, GRR, FAR, FRR = identification_test_all_vs_all(M, labels_list)
 
