@@ -163,6 +163,7 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
         for i in range(n):
             label_i = labels_list[i]
 
+<<<<<<< HEAD
             row_i = np.copy(M[i, :])
             row_i[i] = 0
             sorted_row_i = np.argsort(row_i)
@@ -172,12 +173,21 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
 
             if M[i, min_index] <= thr:
                 if label_i == labels_list[min_index]:
+=======
+            row_i = M[i, :]
+            row_i = np.delete(row_i, i)
+            indexes_of_sorted_row_i = np.argsort(row_i)
+            min_index = indexes_of_sorted_row_i[0]
+
+            if row_i[min_index] <= thr:
+                if labels_list[i] == labels_list[min_index]:
+>>>>>>> 9b149df (Update identification evalutation methods and add evaluation for open iris library)
                     DI[0] += 1
 
                     # Check for impostor case
                     impostor_found = False
-                    for k in sorted_row_i:
-                        if M[i, k] <= thr and labels_list[k] != label_i:
+                    for k in indexes_of_sorted_row_i:
+                        if row_i[k] <= thr and labels_list[k] != label_i:
                             FA += 1
                             impostor_found = True
                             break
@@ -185,6 +195,7 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
                         GR += 1
                 else:
                     FA += 1
+<<<<<<< HEAD
                     sub = 0
                     for k in sorted_row_i:
                         if k == i:
@@ -192,6 +203,11 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
                             continue
                         if M[i, k] <= thr and labels_list[k] == label_i:
                             DI[k - sub] += 1
+=======
+                    for k in indexes_of_sorted_row_i:
+                        if row_i[k] <= thr and labels_list[k] == label_i:
+                            DI[k] += 1
+>>>>>>> 9b149df (Update identification evalutation methods and add evaluation for open iris library)
                             break
             else:
                 GR += 1
@@ -229,7 +245,7 @@ def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gal
     # unique_labels = set(labels)
     while thr <= 1 + threshold_step:
         THS.append(thr)
-        DI = np.zeros(n)
+        DI = np.zeros(len(labels_lists_gallery))
         GR = 0
         FA = 0
         TG = TI = n
@@ -240,18 +256,23 @@ def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gal
             sorted_row_i = np.argsort(row_i)
             min_index = sorted_row_i[0]
 
-            if M[i, min_index] <= thr:
+            if row_i[min_index] <= thr:
                 if label_i == labels_lists_gallery[min_index]:
                     DI[0] += 1
 
                     for k in sorted_row_i:
-                        if M[i, k] <= thr and labels_lists_gallery[k] != label_i:
+                        if row_i[k] <= thr and labels_lists_gallery[k] != label_i:
                             FA += 1
                             break
                 else:
                     FA += 1
+<<<<<<< HEAD
                     for k, idx in enumerate(sorted_row_i):
                         if M[i, k] <= thr and labels_lists_gallery[k] == label_i:
+=======
+                    for k in sorted_row_i:
+                        if row_i[k] <= thr and labels_lists_gallery[k] == label_i:
+>>>>>>> 9b149df (Update identification evalutation methods and add evaluation for open iris library)
                             DI[k] += 1
                             break
             else:
