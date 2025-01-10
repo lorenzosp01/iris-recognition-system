@@ -1,10 +1,10 @@
+import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
-from scipy.spatial.distance import cdist
 from tqdm import tqdm
-import os
 
 from src.lib.cnn import Net
 
@@ -12,14 +12,15 @@ from src.lib.cnn import Net
 def save_model(model_path, model):
     # Get the directory from the file path
     directory = os.path.dirname(model_path)
-    
+
     # Check if the directory exists
     if not os.path.exists(directory):
         # Create the directory if it does not exist
         os.makedirs(directory)
         print(f"Directory created: {directory}")
-    
+
     torch.save(model.state_dict(), model_path)
+
 
 def load_model(model_path):
     try:
@@ -29,6 +30,7 @@ def load_model(model_path):
         return model
     except FileNotFoundError:
         return None
+
 
 def trainModel(net, train_dl, val_dl, num_epochs, learning_rate=1e-3, epoch_checkpoint=1, margin=0.2):
     # Optimizer and loss function initialization
@@ -48,7 +50,6 @@ def trainModel(net, train_dl, val_dl, num_epochs, learning_rate=1e-3, epoch_chec
         epoch_loss = 0
         # Loop through the training data loader
         for batch in tqdm(train_dl, desc=f"Processing batches in epoch {epoch}", unit="batch"):
-
             # Move data to device (GPU or CPU)
             anchors = batch[0].to('cuda')
             positives = batch[1].to('cuda')
@@ -77,10 +78,12 @@ def trainModel(net, train_dl, val_dl, num_epochs, learning_rate=1e-3, epoch_chec
         # Optional: Print epoch loss after processing all batches
         print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(train_dl)}")
 
-        if epoch%epoch_checkpoint == 0 and epoch != 0:
+        if epoch % epoch_checkpoint == 0 and epoch != 0:
             val_loss.append(validateModel(net, val_dl, loss_fn))
             net.train()
-            save_model(f"..\\models\\checkpoints\\model_epoch_{epoch}_margin_{margin}_loss_{epoch_loss / len(train_dl)}.pth", net)
+            save_model(
+                f"..\\models\\checkpoints\\model_epoch_{epoch}_margin_{margin}_loss_{epoch_loss / len(train_dl)}.pth",
+                net)
 
     plt.figure()
     plt.plot(loss_values, label=f'Loss Curve')
@@ -92,6 +95,7 @@ def trainModel(net, train_dl, val_dl, num_epochs, learning_rate=1e-3, epoch_chec
     plt.show()
 
     return loss_values, val_loss
+
 
 def validateModel(net, val_dl, loss_fn):
     net.eval()
@@ -119,6 +123,7 @@ def validateModel(net, val_dl, loss_fn):
     print(f"Validation Loss: {avg_val_loss}")
     return avg_val_loss
 
+
 def cosine_distance(x1, x2):
     """Compute cosine distance between two tensors"""
     # Ensure the inputs are 2D (batch_size x embedding_size)
@@ -128,6 +133,7 @@ def cosine_distance(x1, x2):
 
     sim = F.cosine_similarity(x1, x2, dim=-1)  # Compute cosine similarity over the last dimension
     return 1 - sim  # Cosine distance is 1 - cosine similarity
+
 
 def generate_embeddings(net, dataloader):
     embedding_list = []
@@ -141,6 +147,7 @@ def generate_embeddings(net, dataloader):
             torch.cuda.empty_cache()
 
     return torch.cat(embedding_list, dim=0), np.array(labels_list)
+
 
 def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=False):
     DIR = []
@@ -162,18 +169,6 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
 
         for i in range(n):
             label_i = labels_list[i]
-
-<<<<<<< HEAD
-            row_i = np.copy(M[i, :])
-            row_i[i] = 0
-            sorted_row_i = np.argsort(row_i)
-            min_index = sorted_row_i[0]
-            if min_index == i:
-                min_index = sorted_row_i[1]
-
-            if M[i, min_index] <= thr:
-                if label_i == labels_list[min_index]:
-=======
             row_i = M[i, :]
             row_i = np.delete(row_i, i)
             indexes_of_sorted_row_i = np.argsort(row_i)
@@ -181,7 +176,6 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
 
             if row_i[min_index] <= thr:
                 if labels_list[i] == labels_list[min_index]:
->>>>>>> 9b149df (Update identification evalutation methods and add evaluation for open iris library)
                     DI[0] += 1
 
                     # Check for impostor case
@@ -195,26 +189,16 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
                         GR += 1
                 else:
                     FA += 1
-<<<<<<< HEAD
-                    sub = 0
-                    for k in sorted_row_i:
-                        if k == i:
-                            sub = 1
-                            continue
-                        if M[i, k] <= thr and labels_list[k] == label_i:
-                            DI[k - sub] += 1
-=======
                     for k in indexes_of_sorted_row_i:
                         if row_i[k] <= thr and labels_list[k] == label_i:
                             DI[k] += 1
->>>>>>> 9b149df (Update identification evalutation methods and add evaluation for open iris library)
                             break
             else:
                 GR += 1
 
         dir_t = np.zeros(n)
         for k in range(n):
-            dir_t[k] = (DI[k] / TG) + dir_t[max(k-1,0)]
+            dir_t[k] = (DI[k] / TG) + dir_t[max(k - 1, 0)]
 
         DIR.append(dir_t)
         GRR.append(GR / TI)
@@ -232,6 +216,7 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
 
     return THS, DIR, GRR, FAR, FRR
 
+
 def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gallery, threshold_step=0.005, log=False):
     DIR = []
     GRR = []
@@ -243,7 +228,7 @@ def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gal
 
     # Calcolo dei totali per GAR e FAR
     # unique_labels = set(labels)
-    while thr <= 1 + threshold_step:
+    while thr <= 1 + threshold_stqep:
         THS.append(thr)
         DI = np.zeros(len(labels_lists_gallery))
         GR = 0
@@ -259,20 +244,14 @@ def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gal
             if row_i[min_index] <= thr:
                 if label_i == labels_lists_gallery[min_index]:
                     DI[0] += 1
-
                     for k in sorted_row_i:
                         if row_i[k] <= thr and labels_lists_gallery[k] != label_i:
                             FA += 1
                             break
                 else:
                     FA += 1
-<<<<<<< HEAD
-                    for k, idx in enumerate(sorted_row_i):
-                        if M[i, k] <= thr and labels_lists_gallery[k] == label_i:
-=======
                     for k in sorted_row_i:
                         if row_i[k] <= thr and labels_lists_gallery[k] == label_i:
->>>>>>> 9b149df (Update identification evalutation methods and add evaluation for open iris library)
                             DI[k] += 1
                             break
             else:
@@ -298,10 +277,11 @@ def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gal
 
     return THS, DIR, GRR, FAR, FRR
 
+
 def verification_all_vs_all(M, labels_list, threshold_step=0.005, log=False):
     # Initialize result lists for thresholds
     TG = len(labels_list)  # Total genuine pairs (one per user)
-    TI = TG * (len(set(labels_list)) - 1)     # Total impostor pairs
+    TI = TG * (len(set(labels_list)) - 1)  # Total impostor pairs
 
     # Initialize metrics
     GARs, FARs, FRRs, GRRs = [], [], [], []
@@ -344,16 +324,18 @@ def verification_all_vs_all(M, labels_list, threshold_step=0.005, log=False):
         GRRs.append(GR / TI if TI > 0 else 0)
 
         if log:
-            print(f"Threshold: {thr:.2f} | GAR: {GARs[-1]:.4f}, FAR: {FARs[-1]:.4f}, FRR: {FRRs[-1]:.4f}, GRR: {GRRs[-1]:.4f}")
+            print(
+                f"Threshold: {thr:.2f} | GAR: {GARs[-1]:.4f}, FAR: {FARs[-1]:.4f}, FRR: {FRRs[-1]:.4f}, GRR: {GRRs[-1]:.4f}")
 
         thr += threshold_step
 
     return GARs, FARs, FRRs, GRRs
 
+
 def verification_probe_vs_gallery(M, labels_lists_probe, labels_lists_gallery, threshold_step=0.005, log=False):
     # Initialize result lists for thresholds
     TG = len(labels_lists_probe)  # Total genuine pairs (one per user)
-    TI = TG * (len(set(labels_lists_probe)) - 1)     # Total impostor pairs
+    TI = TG * (len(set(labels_lists_probe)) - 1)  # Total impostor pairs
 
     # Initialize metrics
     GARs, FARs, FRRs, GRRs = [], [], [], []
@@ -396,14 +378,9 @@ def verification_probe_vs_gallery(M, labels_lists_probe, labels_lists_gallery, t
         GRRs.append(GR / TI if TI > 0 else 0)
 
         if log:
-            print(f"Threshold: {thr:.2f} | GAR: {GARs[-1]:.4f}, FAR: {FARs[-1]:.4f}, FRR: {FRRs[-1]:.4f}, GRR: {GRRs[-1]:.4f}")
+            print(
+                f"Threshold: {thr:.2f} | GAR: {GARs[-1]:.4f}, FAR: {FARs[-1]:.4f}, FRR: {FRRs[-1]:.4f}, GRR: {GRRs[-1]:.4f}")
 
         thr += threshold_step
 
     return GARs, FARs, FRRs, GRRs
-
-
-
-
-
-
