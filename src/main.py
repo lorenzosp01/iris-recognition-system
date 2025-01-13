@@ -5,8 +5,8 @@ from torchvision import transforms as tt
 from lib.cnn import Net
 from lib.cnn_utils import trainModel, save_model, load_model, identification_test_all_vs_all, verification_all_vs_all, \
     generate_embeddings, identification_test_probe_vs_gallery, verification_probe_vs_gallery
-from src.data.CasiaIrisDataset import CasiaIrisDataset, split_dataset_gallery_test
-from src.data.datasetUtils import splitDataset
+from src.data.CasiaIrisDataset import CasiaIrisDataset
+from src.data.datasetUtils import splitDataset, split_dataset_gallery_test
 from src.utils.plotting import plot_far_frr_roc
 
 
@@ -16,13 +16,13 @@ if __name__=="__main__":
     loadModel = True
     training = False
     testing = True
-    modelPath = "..\\models\\modelFullEyeMargin0.4Loss0.01256.pth"
+    modelPath = "..\\models\\modelNormalizedEyeMargin0.4Loss0.00521.pth"
 
     transform = tt.Compose([
         tt.ToTensor(),  # Convert to tensor
     ])
 
-    dataset = CasiaIrisDataset(datasetPath, transform=[transform], centered=True)
+    dataset = CasiaIrisDataset(datasetPath, transform=[transform], normalized=True)
 
     train_dataset, val_dataset, test_dataset = splitDataset(dataset, 0.2, 0.1)
 
@@ -42,15 +42,15 @@ if __name__=="__main__":
         val_dataloader = DataLoader(dataset=val_dataset, batch_size=32, shuffle=True, num_workers=8, pin_memory=False)
 
         print("Training model...")
-        training_loss, validation_loss = trainModel(net, train_dataloader, val_dataloader, num_epochs=16, epoch_checkpoint=2, margin=0.4)
+        training_loss, validation_loss = trainModel(net, train_dataloader, val_dataloader, num_epochs=12, epoch_checkpoint=2, margin=0.4)
 
         print("Saving model...")
         save_model(modelPath, net)
 
     if testing:
-        ## Test the model with all vs all  ------------------------------------------------------------------------------------
-        dataset.eval()
 
+        dataset.eval()
+        ## Test the model with all vs all  ------------------------------------------------------------------------------------
         all_vs_all_dataset = DataLoader(dataset=test_dataset, batch_size=32, num_workers=8, pin_memory=True)
 
         net.eval()
@@ -64,11 +64,11 @@ if __name__=="__main__":
 
         thresholds, DIR, GRR, FAR, FRR = identification_test_all_vs_all(M, labels_list)
 
-        plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=np.array(DIR))
+        plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=np.array(DIR), roc=True, titleRoc="ROC Curve - Identification - All vs all", titleEer="FAR, FRR, Rank-1, GRR and EER - Indentification - All vs all")
 
         GARs, FARs, FRRs, GRRs = verification_all_vs_all(M, labels_list)
 
-        plot_far_frr_roc(thresholds, FARs, FRRs, GRRs, DIR=None)
+        plot_far_frr_roc(thresholds, FARs, FRRs, GRRs, DIR=None, titleEer="FAR, FRR, Rank-1, GRR and EER - Verification - All vs all")
 
         ## Test the model with all vs all  ------------------------------------------------------------------------------------
 
@@ -86,16 +86,16 @@ if __name__=="__main__":
         embedding_list_gallery = embedding_list_gallery.numpy()
         embedding_list_probe = embedding_list_probe.numpy()
 
-        M = - cosine_similarity(embedding_list_gallery, embedding_list_probe)
+        M = - cosine_similarity(embedding_list_probe, embedding_list_gallery)
         M = (np.round(M, 4) + 1) / 2
 
         thresholds, DIR, GRR, FAR, FRR = identification_test_probe_vs_gallery(M, labels_list_probe, labels_list_gallery)
 
-        plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=np.array(DIR))
+        plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=np.array(DIR), roc=True, titleRoc="ROC Curve - Identification - Probe vs Gallery", titleEer="FAR, FRR, Rank-1, GRR and EER - Indentification - Probe vs Gallery")
 
         GARs, FARs, FRRs, GRRs = verification_probe_vs_gallery(M, labels_list_probe, labels_list_gallery)
 
-        plot_far_frr_roc(thresholds, FARs, FRRs, GRRs, DIR=None)
+        plot_far_frr_roc(thresholds, FARs, FRRs, GRRs, DIR=None, titleEer="FAR, FRR, Rank-1, GRR and EER - Verification - Probe vs Gallery")
 
 
 

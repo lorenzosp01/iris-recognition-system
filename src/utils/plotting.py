@@ -6,7 +6,7 @@ from scipy.optimize import brentq
 from sklearn.metrics import auc
 
 
-def plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=None):
+def plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=None, roc=False, titleRoc="ROC Curve", titleEer="FAR, FRR, and EER Curve"):
     # Ensure FAR and FRR are arrays
     if not isinstance(FAR, np.ndarray):
         FAR = np.array(FAR)
@@ -26,6 +26,7 @@ def plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=None):
 
     # Use brentq with a lambda function to find the threshold where FAR = FRR
     eer_threshold = brentq(lambda x: FAR_itp(x) - FRR_itp(x), 0.0, 1.0)
+    index = np.where(np.round(thresholds, 2) == np.round(eer_threshold, 2))[0][0]
     eer = FAR_itp(eer_threshold)
 
     # Find ZeroFAR and ZeroFRR points
@@ -38,7 +39,7 @@ def plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=None):
     plt.plot(thresholds, FRR, label="FRR(t)", color="green")
     plt.plot(thresholds, GRR, linestyle="--", label="GRR(t)", color="purple")
     if DIR is not None:
-        plt.plot(thresholds, DIR[:,0], linestyle="--", label=f"Rank-1(EER):", color="orange")
+        plt.plot(thresholds, DIR[:,0], linestyle="--", label=f"Rank-1(EER): {np.round(DIR[:,0][index], 4)}", color="orange")
 
     # Highlight EER, ZeroFAR, and ZeroFRR points
     plt.scatter(eer_threshold, eer, color="red", label="EER: {:.2f}".format(eer))
@@ -63,7 +64,7 @@ def plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=None):
     plt.axhline(y=eer, linestyle="--", color="gray", alpha=0.7)
     plt.xlabel("t (Threshold)")
     plt.ylabel("Error")
-    plt.title("FAR, FRR, and EER Curve")
+    plt.title(titleEer)
     plt.legend()
     plt.grid(alpha=0.3)
     plt.show()
@@ -77,12 +78,13 @@ def plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=None):
     # AUC calculation
     roc_auc = auc(FAR, tpr_sorted)
 
-    plt.figure()
-    plt.plot(FAR, tpr_sorted, color='green', lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
-    plt.xlabel("False Positive Rate (FAR)")
-    plt.ylabel("True Positive Rate (1 - FRR)")
-    plt.title("ROC Curve")
-    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", alpha=0.7)  # Diagonal line for random classifier
-    plt.legend()
-    plt.grid(alpha=0.3)
-    plt.show()
+    if roc:
+        plt.figure()
+        plt.plot(FAR, tpr_sorted, color='green', lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
+        plt.xlabel("False Positive Rate (FAR)")
+        plt.ylabel("True Positive Rate (1 - FRR)")
+        plt.title(titleRoc)
+        plt.plot([0, 1], [0, 1], linestyle="--", color="gray", alpha=0.7)  # Diagonal line for random classifier
+        plt.legend()
+        plt.grid(alpha=0.3)
+        plt.show()
