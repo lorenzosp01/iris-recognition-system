@@ -3,9 +3,8 @@ import sqlite3
 
 import numpy as np
 from iris import IrisTemplate
+from iris.nodes.matcher.utils import simple_hamming_distance
 from sklearn.metrics.pairwise import cosine_similarity
-
-from src.evaluation.hamming_distance_cuda import simple_hamming_distance
 
 DATABASE_NAME = "iris_app.db"
 

@@ -41,14 +41,14 @@ if __name__=="__main__":
         train_dataloader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True, num_workers=8, pin_memory=False)
         val_dataloader = DataLoader(dataset=val_dataset, batch_size=32, shuffle=True, num_workers=8, pin_memory=False)
 
-        print("Training model...")
+        print("Training models...")
         training_loss, validation_loss = trainModel(net, train_dataloader, val_dataloader, num_epochs=16, epoch_checkpoint=2, margin=0.4)
 
-        print("Saving model...")
+        print("Saving models...")
         save_model(modelPath, net)
 
     if testing:
-        ## Test the model with all vs all  ------------------------------------------------------------------------------------
+        ## Test the models with all vs all  ------------------------------------------------------------------------------------
         dataset.eval()
 
         all_vs_all_dataset = DataLoader(dataset=test_dataset, batch_size=32, num_workers=8, pin_memory=True)
@@ -70,7 +70,7 @@ if __name__=="__main__":
 
         plot_far_frr_roc(thresholds, FARs, FRRs, GRRs, DIR=None)
 
-        ## Test the model with all vs all  ------------------------------------------------------------------------------------
+        ## Test the models with all vs all  ------------------------------------------------------------------------------------
 
         gallery, test = split_dataset_gallery_test(test_dataset, gallery_ratio=0.6, seed=20)
 
