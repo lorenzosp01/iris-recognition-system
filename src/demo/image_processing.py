@@ -54,7 +54,7 @@ def process_eye_image(eye_image, eye_side, device="cpu"):
 
         # Load the CNN models
         full_eye_model = load_and_prepare_model("models/modelFullEyeMargin0.4Loss0.01256.pth", device)
-        normalized_iris_model = load_and_prepare_model("models/modelNormalizedEyeMargin0.4Loss0.00521.pth", device)
+        normalized_iris_model = load_and_prepare_model("models/modelNormalizedEyeMargin040.pth", device)
 
         # Transform images to tensors
         cropped_iris_tensor = transform_image_to_tensor(cropped_iris_image).to(device)

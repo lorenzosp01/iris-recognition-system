@@ -135,12 +135,12 @@ def cosine_distance(x1, x2):
     return 1 - sim  # Cosine distance is 1 - cosine similarity
 
 
-def generate_embeddings(net, dataloader):
+def generate_embeddings(device, net, dataloader):
     embedding_list = []
     labels_list = []
     with torch.no_grad():
         for images, labels, _ in tqdm(dataloader, desc="Generating embeddings", total=len(dataloader)):
-            images = images.to('cuda')
+            images = images.to(device)
             embedding_list.append(net(images).cpu())
             labels_list.extend(labels)
             del images
@@ -149,7 +149,7 @@ def generate_embeddings(net, dataloader):
     return torch.cat(embedding_list, dim=0), np.array(labels_list)
 
 
-def identification_test_all_vs_all(M, labels_list, threshold_step=0.001, log=False):
+def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=False):
     DIR = []
     GRR = []
     FAR = []
@@ -217,7 +217,7 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.001, log=Fal
     return THS, DIR, GRR, FAR, FRR
 
 
-def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gallery, threshold_step=0.001, log=False):
+def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gallery, threshold_step=0.005, log=False):
     DIR = []
     GRR = []
     FAR = []
@@ -277,8 +277,7 @@ def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gal
 
     return THS, DIR, GRR, FAR, FRR
 
-
-def verification_all_vs_all(M, labels_list, threshold_step=0.001, log=False):
+def verification_all_vs_all(M, labels_list, threshold_step=0.005, log=False):
     # Initialize result lists for thresholds
     TG = len(labels_list)  # Total genuine pairs (one per user)
     TI = TG * (len(set(labels_list)) - 1)  # Total impostor pairs
@@ -332,7 +331,7 @@ def verification_all_vs_all(M, labels_list, threshold_step=0.001, log=False):
     return GARs, FARs, FRRs, GRRs
 
 
-def verification_probe_vs_gallery(M, labels_lists_probe, labels_lists_gallery, threshold_step=0.001, log=False):
+def verification_probe_vs_gallery(M, labels_lists_probe, labels_lists_gallery, threshold_step=0.005, log=False):
     # Initialize result lists for thresholds
     TG = len(labels_lists_probe)  # Total genuine pairs (one per user)
     TI = TG * (len(set(labels_lists_probe)) - 1)  # Total impostor pairs
