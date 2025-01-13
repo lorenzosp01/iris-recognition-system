@@ -20,10 +20,10 @@ def process_image(path, eye_side):
 
 
 def load_and_prepare_model(model_path, device="cpu"):
-    """Load a model and move it to the specified device."""
+    """Load a models and move it to the specified device."""
     model = load_model(model_path)
     model.to(device)
-    model.eval()  # Set the model to evaluation mode
+    model.eval()  # Set the models to evaluation mode
     return model
 
 
@@ -53,7 +53,7 @@ def process_eye_image(eye_image, eye_side, device="cpu"):
         normalized_iris_image = iris_pipeline.call_trace['normalization'].normalized_image
 
         # Load the CNN models
-        full_eye_model = load_and_prepare_model("models/modelFullEyeMargin0.2.pth", device)
+        full_eye_model = load_and_prepare_model("models/modelFullEyeMargin0.4Loss0.01256.pth", device)
         normalized_iris_model = load_and_prepare_model("models/modelNormalizedEyeMargin0.4Loss0.00521.pth", device)
 
         # Transform images to tensors
