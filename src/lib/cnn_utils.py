@@ -82,7 +82,7 @@ def trainModel(net, train_dl, val_dl, num_epochs, learning_rate=1e-3, epoch_chec
             val_loss.append(validateModel(net, val_dl, loss_fn))
             net.train()
             save_model(
-                f"..\\models\\checkpoints\\model_epoch_{epoch}_margin_{margin}_loss_{epoch_loss / len(train_dl)}.pth",
+                f"..\\models\\checkpoints\\model_epoch_{epoch+10}_margin_{margin}_loss_{epoch_loss / len(train_dl)}.pth",
                 net)
 
     plt.figure()

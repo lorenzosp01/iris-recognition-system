@@ -14,20 +14,20 @@ if __name__=="__main__":
     datasetPath = "F:\\Dataset\\Casia"
 
     loadModel = True
-    training = False
-    testing = True
-    modelPath = "..\\models\\modelNormalizedEyeMargin0.4Loss0.00521.pth"
+    training = True
+    testing = False
+    modelPath = "..\\models\\modelFullEyeMargin0.4.pth"
 
     transform = tt.Compose([
         tt.ToTensor(),  # Convert to tensor
     ])
 
-    dataset = CasiaIrisDataset(datasetPath, transform=[transform], normalized=True)
+    dataset = CasiaIrisDataset(datasetPath, transform=[transform], centered=True)
 
     train_dataset, val_dataset, test_dataset = splitDataset(dataset, 0.2, 0.1)
 
     if loadModel:
-        net = load_model(modelPath)
+        net = load_model("..\\models\\modelFullEyeMargin0.4Loss0.01256.pth")
         if net is None:
             print("Model not found")
             exit(1)
@@ -38,11 +38,11 @@ if __name__=="__main__":
     if training:
         dataset.train()
 
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True, num_workers=8, pin_memory=False)
-        val_dataloader = DataLoader(dataset=val_dataset, batch_size=32, shuffle=True, num_workers=8, pin_memory=False)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True, num_workers=6, pin_memory=False)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=32, shuffle=True, num_workers=6, pin_memory=False)
 
         print("Training model...")
-        training_loss, validation_loss = trainModel(net, train_dataloader, val_dataloader, num_epochs=12, epoch_checkpoint=2, margin=0.4)
+        training_loss, validation_loss = trainModel(net, train_dataloader, val_dataloader, num_epochs=20, epoch_checkpoint=2, margin=0.4)
 
         print("Saving model...")
         save_model(modelPath, net)
@@ -51,7 +51,7 @@ if __name__=="__main__":
 
         dataset.eval()
         ## Test the model with all vs all  ------------------------------------------------------------------------------------
-        all_vs_all_dataset = DataLoader(dataset=test_dataset, batch_size=32, num_workers=8, pin_memory=True)
+        all_vs_all_dataset = DataLoader(dataset=test_dataset, batch_size=32, num_workers=6, pin_memory=True)
 
         net.eval()
 
