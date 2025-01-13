@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist
 from tqdm import tqdm
 import os
-from lib.cnn import Net
+from src.lib.cnn import Net
 
 
 def save_model(model_path, model):
@@ -23,7 +23,7 @@ def save_model(model_path, model):
 def load_model(model_path):
     try:
         model = Net()
-        model.load_state_dict(torch.load(model_path, weights_only=True))
+        model.load_state_dict(torch.load(model_path, weights_only=True, map_location='cpu'))
         model.eval()
         return model
     except FileNotFoundError:
