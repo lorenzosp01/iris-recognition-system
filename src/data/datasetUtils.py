@@ -36,38 +36,22 @@ def splitDataset(dataset, train_test_split_size=0.2, train_val_split_size=0.1):
     return train_dataset, val_dataset, test_dataset
 
 def split_dataset_gallery_test(dataset, gallery_ratio=0.4, seed=42):
-    """
-    Divide un dataset in due subset: un gallery subset che contiene almeno un elemento per ogni label
-    e un altro subset contenente gli elementi rimanenti.
 
-    Args:
-        dataset (Dataset): Il dataset da dividere. Deve avere un attributo `__getitem__` che restituisce
-                           (input, label), dove label è un valore intero o una stringa.
-        seed (int): Un seed per la riproducibilità della suddivisione.
-
-    Returns:
-        gallery_indices (list): Lista degli indici per il gallery subset.
-        rest_indices (list): Lista degli indici per il subset rimanente.
-    """
-    # Dizionari per raggruppare gli indici in base alla label
     label_to_indices = defaultdict(list)
 
-    # Raggruppa gli indici del dataset in base alle label
     for idx, (input_data, label, p) in enumerate(dataset):
         label_to_indices[label].append(idx)
 
-    # Suddividi gli indici
+
     random.seed(seed)
     gallery_indices = []
     test_indices = []
 
     for label, indices in label_to_indices.items():
-        random.shuffle(indices)  # Shuffle per selezionare casualmente
+        random.shuffle(indices)
 
-        # Calcola il numero di elementi da includere nel gallery subset
         n_gallery = max(1, int(len(indices) * gallery_ratio))
 
-        # Seleziona gli indici per il gallery e per il test
         gallery_indices.extend(indices[:n_gallery])
         test_indices.extend(indices[n_gallery:])
 

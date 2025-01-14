@@ -1,6 +1,5 @@
 import json
 import random
-
 from PIL import Image
 import pandas as pd
 import os
@@ -35,7 +34,7 @@ class CasiaIrisDataset(Dataset):
             for eye in os.listdir(os.path.join(self.image_dir, user)):
                 subdir_path = os.path.join(user, eye)
                 for img in os.listdir(os.path.join(self.image_dir, user, eye)):
-                    if img.endswith('.jpg'):
+                    if img.endswith('.jpg') or img.endswith('.json'):
                         self.image_paths.append(os.path.join(self.image_dir, user, eye, img))
                         eyeN = 0 if "L" in eye else 1
                         label = int(user) + (eyeN*1000)
@@ -90,9 +89,9 @@ class CasiaIrisDataset(Dataset):
         return anchor, positive, negative, anchor_label
 
     def loadItem(self, idx):
-        # Load image file
+
         image_paths = os.path.join(self.image_dir, self.image_paths[idx])
-        # Load label
+
         label = self.labels[idx]
         if "Encoded" in self.image_dir:
             with open(image_paths) as f:
@@ -100,7 +99,7 @@ class CasiaIrisDataset(Dataset):
         else:
             image =  Image.open(image_paths)
 
-            # Apply transformations
+
             if len(self.transform) > 0:
                 transform_idx = idx // len(self.data)
                 image = self.transform[transform_idx](image)

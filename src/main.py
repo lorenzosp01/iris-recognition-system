@@ -14,20 +14,20 @@ if __name__=="__main__":
     datasetPath = "F:\\Dataset\\Casia"
 
     loadModel = True
-    training = True
-    testing = False
-    modelPath = "..\\models\\modelFullEyeMargin0.4.pth"
+    training = False
+    testing = True
+    modelPath = "..\\models\\modelNormalizedEyeMargin040.pth"
 
     transform = tt.Compose([
         tt.ToTensor(),  # Convert to tensor
     ])
 
-    dataset = CasiaIrisDataset(datasetPath, transform=[transform], centered=True)
+    dataset = CasiaIrisDataset(datasetPath, transform=[transform], normalized=True)
 
     train_dataset, val_dataset, test_dataset = splitDataset(dataset, 0.2, 0.1)
 
     if loadModel:
-        net = load_model("..\\models\\modelFullEyeMargin0.4Loss0.01256.pth")
+        net = load_model(modelPath)
         if net is None:
             print("Model not found")
             exit(1)
@@ -38,8 +38,8 @@ if __name__=="__main__":
     if training:
         dataset.train()
 
-        train_dataloader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True, num_workers=6, pin_memory=False)
-        val_dataloader = DataLoader(dataset=val_dataset, batch_size=32, shuffle=True, num_workers=6, pin_memory=False)
+        train_dataloader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True, num_workers=8, pin_memory=False)
+        val_dataloader = DataLoader(dataset=val_dataset, batch_size=32, shuffle=True, num_workers=8, pin_memory=False)
 
         print("Training model...")
         training_loss, validation_loss = trainModel(net, train_dataloader, val_dataloader, num_epochs=20, epoch_checkpoint=2, margin=0.4)
@@ -51,11 +51,11 @@ if __name__=="__main__":
 
         dataset.eval()
         ## Test the model with all vs all  ------------------------------------------------------------------------------------
-        all_vs_all_dataset = DataLoader(dataset=test_dataset, batch_size=32, num_workers=6, pin_memory=True)
+        all_vs_all_dataset = DataLoader(dataset=test_dataset, batch_size=64, num_workers=8, pin_memory=True)
 
         net.eval()
 
-        embedding_list, labels_list = generate_embeddings(net, all_vs_all_dataset)
+        embedding_list, labels_list = generate_embeddings('cuda', net, all_vs_all_dataset)
 
         embedding_array = embedding_list.numpy()  # Convert the tensor to numpy array for cdist
         M = - cosine_similarity(embedding_array)
@@ -64,7 +64,7 @@ if __name__=="__main__":
 
         thresholds, DIR, GRR, FAR, FRR = identification_test_all_vs_all(M, labels_list)
 
-        plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=np.array(DIR), roc=True, titleRoc="ROC Curve - Identification - All vs all", titleEer="FAR, FRR, Rank-1, GRR and EER - Indentification - All vs all")
+        plot_far_frr_roc(thresholds, FAR, FRR, GRR, DIR=np.array(DIR), roc=True, titleRoc="ROC Curve - Identification - All vs all", titleEer="FAR, FRR, Rank-1, GRR and EER - Identification - All vs all")
 
         GARs, FARs, FRRs, GRRs = verification_all_vs_all(M, labels_list)
 
@@ -77,11 +77,11 @@ if __name__=="__main__":
         gallery = Subset(test_dataset, gallery)
         test = Subset(test_dataset, test)
 
-        gallery_dataset = DataLoader(dataset=gallery, batch_size=64, shuffle=False, num_workers=4, pin_memory=False)
-        probe_dataset = DataLoader(dataset=test, batch_size=64, shuffle=False, num_workers=4, pin_memory=False)
+        gallery_dataset = DataLoader(dataset=gallery, batch_size=64, shuffle=False, num_workers=8, pin_memory=False)
+        probe_dataset = DataLoader(dataset=test, batch_size=64, shuffle=False, num_workers=8, pin_memory=False)
 
-        embedding_list_gallery, labels_list_gallery = generate_embeddings(net, gallery_dataset)
-        embedding_list_probe, labels_list_probe = generate_embeddings(net, probe_dataset)
+        embedding_list_gallery, labels_list_gallery = generate_embeddings('cuda', net, gallery_dataset)
+        embedding_list_probe, labels_list_probe = generate_embeddings('cuda', net, probe_dataset)
 
         embedding_list_gallery = embedding_list_gallery.numpy()
         embedding_list_probe = embedding_list_probe.numpy()
