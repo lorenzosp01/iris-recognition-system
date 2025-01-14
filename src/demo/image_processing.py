@@ -20,7 +20,7 @@ def process_image(path, eye_side):
 
 def load_and_prepare_model(model_path, device="cpu"):
     """Load a models and move it to the specified device."""
-    model = load_model(model_path)
+    model = load_model(model_path, to_cpu=True)
     model.to(device)
     model.eval()  # Set the models to evaluation mode
     return model
@@ -81,3 +81,26 @@ def process_eye_image(eye_image, eye_side, device="cpu"):
 
     except Exception as e:
         return {"error": f"An error occurred during processing: {str(e)}"}
+
+
+if __name__ == '__main__':
+    # Load the eye image
+    eye_image = cv2.imread("eye.jpg", cv2.IMREAD_GRAYSCALE)
+
+    if eye_image is None:
+        print("Error: Could not load image.")
+    else:
+        # Process the eye image
+        output = process_eye_image(eye_image=eye_image, eye_side="right", device="cpu")
+
+        # Print or store each output separately
+        if "error" in output:
+            print("Error:", output["error"])
+        else:
+            # print("Full Eye Prediction (JSON):", output["full_eye_prediction"])
+            # print("Normalized Iris Prediction (JSON):", output["normalized_iris_prediction"])
+            # print("Iris Template Output:", output["iris_template_output"])
+
+            print(type(output["full_eye_prediction"]))
+            print(type(output["normalized_iris_prediction"]))
+            print(type(output["iris_template_output"]))

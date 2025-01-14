@@ -19,10 +19,13 @@ def save_model(model_path, model):
     torch.save(model.state_dict(), model_path)
 
 
-def load_model(model_path):
+def load_model(model_path, to_cpu=False):
     try:
         model = Net()
-        model.load_state_dict(torch.load(model_path, weights_only=True))
+        if to_cpu:
+            model.load_state_dict(torch.load(model_path, weights_only=True, map_location='cpu'))
+        else:
+            model.load_state_dict(torch.load(model_path, weights_only=True))
         model.eval()
         return model
     except FileNotFoundError:
@@ -69,7 +72,7 @@ def trainModel(net, train_dl, val_dl, num_epochs, learning_rate=1e-3, epoch_chec
             val_loss.append(validateModel(net, val_dl, loss_fn))
             net.train()
             save_model(
-                f"..\\models\\checkpoints\\model_epoch_{epoch+10}_margin_{margin}_loss_{epoch_loss / len(train_dl)}.pth",
+                f"..\\models\\checkpoints\\model_epoch_{epoch + 10}_margin_{margin}_loss_{epoch_loss / len(train_dl)}.pth",
                 net)
 
     plt.figure()
@@ -255,6 +258,7 @@ def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gal
         thr += threshold_step
 
     return THS, DIR, GRR, FAR, FRR
+
 
 def verification_all_vs_all(M, labels_list, threshold_step=0.005, log=False):
     TG = len(labels_list)
