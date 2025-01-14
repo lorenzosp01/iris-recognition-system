@@ -1,4 +1,3 @@
-import base64  # For encoding binary data (e.g., iris template)
 import json  # Import the json module for serialization
 
 import cv2
@@ -53,7 +52,7 @@ def process_eye_image(eye_image, eye_side, device="cpu"):
         normalized_iris_image = iris_pipeline.call_trace['normalization'].normalized_image
 
         # Load the CNN models
-        full_eye_model = load_and_prepare_model("models/modelFullEyeMargin0.4Loss0.01256.pth", device)
+        full_eye_model = load_and_prepare_model("models/modelFullEyeMargin0.4Loss0.00457.pth", device)
         normalized_iris_model = load_and_prepare_model("models/modelNormalizedEyeMargin0.4Loss0.00521.pth", device)
 
         # Transform images to tensors
@@ -82,26 +81,3 @@ def process_eye_image(eye_image, eye_side, device="cpu"):
 
     except Exception as e:
         return {"error": f"An error occurred during processing: {str(e)}"}
-
-
-if __name__ == '__main__':
-    # Load the eye image
-    eye_image = cv2.imread("eye.jpg", cv2.IMREAD_GRAYSCALE)
-
-    if eye_image is None:
-        print("Error: Could not load image.")
-    else:
-        # Process the eye image
-        output = process_eye_image(eye_image=eye_image, eye_side="right", device="cpu")
-
-        # Print or store each output separately
-        if "error" in output:
-            print("Error:", output["error"])
-        else:
-            # print("Full Eye Prediction (JSON):", output["full_eye_prediction"])
-            # print("Normalized Iris Prediction (JSON):", output["normalized_iris_prediction"])
-            # print("Iris Template Output:", output["iris_template_output"])
-
-            print(type(output["full_eye_prediction"]))
-            print(type(output["normalized_iris_prediction"]))
-            print(type(output["iris_template_output"]))

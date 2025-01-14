@@ -8,6 +8,10 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 DATABASE_NAME = "iris_app.db"
 
+OPEN_IRIS_TRASHHOLD = 0.375
+FULL_EYE_TRASHHOLD = 0.06
+NORMALIZED_IRIS_TRASHHOLD = 0.06
+
 
 def initialize_database():
     """Initialize the SQLite database and create tables if they don't exist."""
@@ -91,8 +95,8 @@ def compute_cosine_distance(embedding_list_gallery, embedding_list_probe):
     return distance
 
 
-def find_top_3_matches(classic_embedding, resnet_embedding, resnet_normalized_embedding):
-    """Find the top 3 closest matches in the database for the given embeddings."""
+def find_all_matches_under_threshold(classic_embedding, resnet_embedding, resnet_normalized_embedding):
+    """Find all matches in the database for the given embeddings that are under the specified thresholds."""
     # Deserialize the classic embedding
     deserialized_classic_embedding = IrisTemplate.deserialize(classic_embedding)
 
@@ -133,8 +137,8 @@ def find_top_3_matches(classic_embedding, resnet_embedding, resnet_normalized_em
     resnet_normalized_distance = compute_cosine_distance(resnet_normalized_embedding_gallery_array,
                                                          resnet_normalized_embedding)
 
-    # List to store all matches
-    all_matches = []
+    # List to store all matches under the thresholds
+    matches_under_threshold = []
 
     # Compute distances for each method
     for i in range(len(user_ids)):
@@ -147,18 +151,23 @@ def find_top_3_matches(classic_embedding, resnet_embedding, resnet_normalized_em
         # Normalized resnet embedding distance
         resnet_normalized_distance_i = resnet_normalized_distance[0][i]
 
-        # Add all matches to the list
-        all_matches.append(("OpenIrisLibrary", classic_distance, user_ids[i]))
-        all_matches.append(("Full Eye ResNet", resnet_distance_i, user_ids[i]))
-        all_matches.append(("Normalized Eye ResNet", resnet_normalized_distance_i, user_ids[i]))
+        # Check if the distance is under the corresponding threshold
+        if classic_distance < OPEN_IRIS_TRASHHOLD:
+            matches_under_threshold.append(("OpenIrisLibrary", classic_distance, user_ids[i]))
+        if resnet_distance_i < FULL_EYE_TRASHHOLD:
+            matches_under_threshold.append(("Full Eye ResNet", resnet_distance_i, user_ids[i]))
+        if resnet_normalized_distance_i < NORMALIZED_IRIS_TRASHHOLD:
+            matches_under_threshold.append(("Normalized Eye ResNet", resnet_normalized_distance_i, user_ids[i]))
+
+    # If no matches are under the thresholds, return "Identification error"
+    if not matches_under_threshold:
+        return [], False
 
     # Sort all matches by distance
-    all_matches.sort(key=lambda x: x[1])
-
-    # Fetch the top 3 matches
-    top_3_matches = []
-    # for match in all_matches[:3]:
-    for match in all_matches:
+    matches_under_threshold.sort(key=lambda x: x[1])
+    # Fetch the usernames for the matches under the thresholds
+    final_matches = []
+    for match in matches_under_threshold:
         method, distance, user_id = match
 
         # Fetch the username for the user
@@ -168,6 +177,6 @@ def find_top_3_matches(classic_embedding, resnet_embedding, resnet_normalized_em
         username = cursor.fetchone()[0]
         conn.close()
 
-        top_3_matches.append({"method": method, "distance": distance, "label": username})
+        final_matches.append({"method": method, "distance": distance, "label": username})
 
-    return top_3_matches
+    return final_matches, True

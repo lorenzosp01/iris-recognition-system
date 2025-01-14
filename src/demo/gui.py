@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QLineEdit, QPushButt
                              QFileDialog, QMessageBox, QGroupBox, QStackedWidget, QTableWidget, QTableWidgetItem,
                              QHeaderView, QComboBox)
 
-from db import initialize_database, insert_user, find_top_3_matches
+from db import initialize_database, insert_user, find_all_matches_under_threshold
 from src.demo.image_processing import process_image
 
 
@@ -110,19 +110,24 @@ class LoginPage(QWidget):
         resnet_embedding = json.loads(output["full_eye_prediction"])
         resnet_normalized_embedding = json.loads(output["normalized_iris_prediction"])
 
-        # Find the top 3 matches
-        top_3_matches = find_top_3_matches(classic_embedding, resnet_embedding, resnet_normalized_embedding)
+        matches, is_found = find_all_matches_under_threshold(classic_embedding, resnet_embedding, resnet_normalized_embedding)
+
+        if not is_found:
+            self.welcome_label.setText(f"User Rejected")
+            self.welcome_label.setVisible(True)
+            self.result_table.setRowCount(0)
+            return
 
         # Update the welcome message
-        if top_3_matches:
-            self.welcome_label.setText(f"Welcome, {top_3_matches[0]['label']}!")
+        if matches:
+            self.welcome_label.setText(f"Welcome, {matches[0]['label']}!")
             self.welcome_label.setVisible(True)
 
         # Clear the table
         self.result_table.setRowCount(0)
 
         # Populate the table with results
-        for match in top_3_matches:
+        for match in matches:
             row_position = self.result_table.rowCount()
             self.result_table.insertRow(row_position)
 

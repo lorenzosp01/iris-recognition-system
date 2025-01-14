@@ -1,18 +1,17 @@
 import json
 import multiprocessing
-import os
-import random
 
 import numpy as np
-from iris import HammingDistanceMatcher, IrisTemplate
+from iris import IrisTemplate
 from iris.nodes.matcher.utils import simple_hamming_distance
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from src.data.CasiaIrisDataset import CasiaIrisDataset
 from src.data.datasetUtils import splitDataset
 
 distance_matrix = np.zeros((9984, 9984))
+
+
 # Define dataset root directory
 
 # Function to load iris templates and their labels
@@ -21,6 +20,7 @@ def get_label_template(json_file, label, eye_side):
         data = json.load
     full_label = f"{label}_{eye_side}"  # Combine label and eye side for clarity
     return IrisTemplate.deserialize(data), full_label
+
 
 # def get_dataset(dataset_dir):
 #     # Traverse the dataset and return templates and labels
@@ -65,9 +65,10 @@ def task(start_idx, end_idx, templates):
         print(f"Error in task: {e}")
     return sub_distance_matrix
 
+
 def calculate_distance_matrix(templates, num_cores=10):
     num_samples = len(templates)
- # Matrice delle distanze
+    # Matrice delle distanze
 
     # Suddividere il lavoro in blocchi per ogni worker
     chunk_size = num_samples // num_cores
@@ -90,6 +91,7 @@ def calculate_distance_matrix(templates, num_cores=10):
 
     return np.concatenate([result.get() for result in results], axis=0)
 
+
 def elaborate_batch(dataset):
     iris_templates = []
     labels = []
@@ -97,6 +99,7 @@ def elaborate_batch(dataset):
         iris_templates.append(image)
         labels.append(label)
     return iris_templates, labels
+
 
 # Usage Example
 if __name__ == "__main__":

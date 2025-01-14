@@ -25,7 +25,7 @@ def save_model(model_path, model):
 def load_model(model_path):
     try:
         model = Net()
-        model.load_state_dict(torch.load(model_path, weights_only=True))
+        model.load_state_dict(torch.load(model_path, weights_only=True, map_location='cpu'))
         model.eval()
         return model
     except FileNotFoundError:
@@ -38,10 +38,9 @@ def trainModel(net, train_dl, val_dl, num_epochs, learning_rate=1e-3, epoch_chec
     loss_fn = torch.nn.TripletMarginWithDistanceLoss(distance_function=lambda x, y: 1.0 - F.cosine_similarity(x, y),
                                                      margin=margin)
 
-    # Set the model to training mode
+    # Set the models to training mode
     net.train()
     loss_values = []
-    val_loss = []
     print("Starting training...")
 
     for epoch in range(num_epochs):
@@ -79,7 +78,7 @@ def trainModel(net, train_dl, val_dl, num_epochs, learning_rate=1e-3, epoch_chec
         print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(train_dl)}")
 
         if epoch % epoch_checkpoint == 0 and epoch != 0:
-            val_loss.append(validateModel(net, val_dl, loss_fn))
+            validateModel(net, val_dl, loss_fn)
             net.train()
             save_model(
                 f"..\\models\\checkpoints\\model_epoch_{epoch+10}_margin_{margin}_loss_{epoch_loss / len(train_dl)}.pth",
@@ -93,8 +92,6 @@ def trainModel(net, train_dl, val_dl, num_epochs, learning_rate=1e-3, epoch_chec
     plt.legend(loc='lower right')
     plt.grid()
     plt.show()
-
-    return loss_values, val_loss
 
 
 def validateModel(net, val_dl, loss_fn):
@@ -160,28 +157,29 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.001, log=Fal
 
     # Calcolo dei totali per GAR e FAR
     # unique_labels = set(labels)
-    while thr <= 1:
+    while thr <= 1 + threshold_step:
         THS.append(thr)
         DI = np.zeros(n)
         GR = 0
         FA = 0
         TG = TI = (n - 1)
-
         for i in range(n):
             label_i = labels_list[i]
-            row_i = M[i, :]
-            row_i = np.delete(row_i, i)
-            indexes_of_sorted_row_i = np.argsort(row_i)
-            min_index = indexes_of_sorted_row_i[0]
 
-            if row_i[min_index] <= thr:
+            row_i = M[i, :]
+            row_i[i] = 0
+            sorted_row_i = np.argsort(row_i)
+            min_index = sorted_row_i[0]
+            if min_index == i:
+                min_index = sorted_row_i[1]
+
+            if M[i, min_index] <= thr:
                 if labels_list[i] == labels_list[min_index]:
                     DI[0] += 1
 
-                    # Check for impostor case
                     impostor_found = False
-                    for k in indexes_of_sorted_row_i:
-                        if row_i[k] <= thr and labels_list[k] != label_i:
+                    for k in sorted_row_i:
+                        if M[i, k] <= thr and labels_list[k] != label_i:
                             FA += 1
                             impostor_found = True
                             break
@@ -189,28 +187,32 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.001, log=Fal
                         GR += 1
                 else:
                     FA += 1
-                    for k in indexes_of_sorted_row_i:
-                        if row_i[k] <= thr and labels_list[k] == label_i:
-                            DI[k] += 1
+                    sub = 0
+                    for k, idx in enumerate(sorted_row_i):
+                        if idx == i:
+                            sub += 1
+                            continue
+                        if M[i, idx] <= thr and labels_list[idx] == label_i:
+                            DI[k - sub] += 1
                             break
             else:
                 GR += 1
 
-        dir_t = np.zeros(n)
-        for k in range(n):
-            dir_t[k] = (DI[k] / TG) + dir_t[max(k - 1, 0)]
+        local_dir = np.zeros(n)
+        for i in range(n):
+            local_dir[i] = (DI[i] / TG) + local_dir[max(i - 1, 0)]
 
-        DIR.append(dir_t)
+        DIR.append(local_dir)
         GRR.append(GR / TI)
         FAR.append(FA / TI)
-        FRR.append(1 - dir_t[0])
+        FRR.append(1 - local_dir[0])
 
         if log:
             print("Threshold:", thr)
-            print("DIR[0]:", dir_t[0])
+            print("DIR[0]:", local_dir[0])
             print("GRR:", GR / TI)
             print("FAR:", FA / TI)
-            print("FRR:", 1 - dir_t[0])
+            print("FRR:", 1 - local_dir[0])
             print("--------------")
         thr += threshold_step
 
@@ -230,7 +232,7 @@ def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gal
     # unique_labels = set(labels)
     while thr <= 1 + threshold_step:
         THS.append(thr)
-        DI = np.zeros(len(labels_lists_gallery))
+        DI = np.zeros(n)
         GR = 0
         FA = 0
         TG = TI = n
@@ -238,40 +240,52 @@ def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gal
             label_i = labels_lists_probe[i]
 
             row_i = M[i, :]
+            row_i[i] = 0
             sorted_row_i = np.argsort(row_i)
             min_index = sorted_row_i[0]
+            if min_index == i:
+                min_index = sorted_row_i[1]
 
-            if row_i[min_index] <= thr:
+            if M[i, min_index] <= thr:
                 if label_i == labels_lists_gallery[min_index]:
                     DI[0] += 1
+
+                    impostor_found = False
                     for k in sorted_row_i:
-                        if row_i[k] <= thr and labels_lists_gallery[k] != label_i:
+                        if M[i, k] <= thr and labels_lists_gallery[k] != label_i:
                             FA += 1
+                            impostor_found = True
                             break
+                    if not impostor_found:
+                        GR += 1
                 else:
                     FA += 1
-                    for k in sorted_row_i:
-                        if row_i[k] <= thr and labels_lists_gallery[k] == label_i:
-                            DI[k] += 1
+                    sub = 0
+                    for k, idx in enumerate(sorted_row_i):
+                        if idx == i:
+                            sub += 1
+                            continue
+                        if M[i, idx] <= thr and labels_lists_gallery[idx] == label_i:
+                            DI[k - sub] += 1
                             break
             else:
                 GR += 1
 
-        dir_t = np.zeros(len(labels_lists_gallery))
-        for i in range(len(labels_lists_gallery)):
-            dir_t[i] = (DI[i] / TG) + dir_t[max(i - 1, 0)]
+        local_dir = np.zeros(n)
+        for i in range(n):
+            local_dir[i] = (DI[i] / TG) + local_dir[max(i - 1, 0)]
 
-        DIR.append(dir_t)
+        DIR.append(local_dir)
         GRR.append(GR / TI)
         FAR.append(FA / TI)
-        FRR.append(1 - dir_t[0])
+        FRR.append(1 - local_dir[0])
 
         if log:
             print("Threshold:", thr)
-            print("DIR[0]:", dir_t[0])
+            print("DIR[0]:", local_dir[0])
             print("GRR:", GR / TI)
             print("FAR:", FA / TI)
-            print("FRR:", 1 - dir_t[0])
+            print("FRR:", 1 - local_dir[0])
             print("--------------")
         thr += threshold_step
 
@@ -287,7 +301,7 @@ def verification_all_vs_all(M, labels_list, threshold_step=0.001, log=False):
     GARs, FARs, FRRs, GRRs = [], [], [], []
 
     thr = 0
-    while thr <= 1:
+    while thr <= 1 + threshold_step:
         GA, FA, FR, GR = 0, 0, 0, 0
 
         for i in range(len(M)):
