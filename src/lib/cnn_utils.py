@@ -10,12 +10,9 @@ from src.lib.cnn import Net
 
 
 def save_model(model_path, model):
-    # Get the directory from the file path
     directory = os.path.dirname(model_path)
 
-    # Check if the directory exists
     if not os.path.exists(directory):
-        # Create the directory if it does not exist
         os.makedirs(directory)
         print(f"Directory created: {directory}")
 
@@ -33,40 +30,31 @@ def load_model(model_path):
 
 
 def trainModel(net, train_dl, val_dl, num_epochs, learning_rate=1e-3, epoch_checkpoint=1, margin=0.2):
-    # Optimizer and loss function initialization
     optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate)
     loss_fn = torch.nn.TripletMarginWithDistanceLoss(distance_function=lambda x, y: 1.0 - F.cosine_similarity(x, y),
                                                      margin=margin)
 
-    # Set the model to training mode
     net.train()
     loss_values = []
     val_loss = []
     print("Starting training...")
 
     for epoch in range(num_epochs):
-
-        # Initialize epoch loss for logging
         epoch_loss = 0
-        # Loop through the training data loader
         for batch in tqdm(train_dl, desc=f"Processing batches in epoch {epoch}", unit="batch"):
-            # Move data to device (GPU or CPU)
             anchors = batch[0].to('cuda')
             positives = batch[1].to('cuda')
             negatives = batch[2].to('cuda')
 
-            optimizer.zero_grad()  # Zero out gradients from the previous step
+            optimizer.zero_grad()
 
-            # Forward pass
             anchor_outputs = net(anchors)
             positive_outputs = net(positives)
             negative_outputs = net(negatives)
             del anchors, positives, negatives
 
-            # Calculate the triplet loss
             loss = loss_fn(anchor_outputs, positive_outputs, negative_outputs)
             del anchor_outputs, positive_outputs, negative_outputs
-            # Backward pass and optimization step
             loss.backward()
             optimizer.step()
 
@@ -75,7 +63,6 @@ def trainModel(net, train_dl, val_dl, num_epochs, learning_rate=1e-3, epoch_chec
             torch.cuda.empty_cache()
 
         loss_values.append(epoch_loss / len(train_dl))
-        # Optional: Print epoch loss after processing all batches
         print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(train_dl)}")
 
         if epoch % epoch_checkpoint == 0 and epoch != 0:
@@ -125,14 +112,11 @@ def validateModel(net, val_dl, loss_fn):
 
 
 def cosine_distance(x1, x2):
-    """Compute cosine distance between two tensors"""
-    # Ensure the inputs are 2D (batch_size x embedding_size)
-    # F.cosine_similarity expects tensors to have the same shape or be broadcastable
     x1 = x1.unsqueeze(0) if x1.dim() == 1 else x1
     x2 = x2.unsqueeze(0) if x2.dim() == 1 else x2
 
-    sim = F.cosine_similarity(x1, x2, dim=-1)  # Compute cosine similarity over the last dimension
-    return 1 - sim  # Cosine distance is 1 - cosine similarity
+    sim = F.cosine_similarity(x1, x2, dim=-1)
+    return 1 - sim
 
 
 def generate_embeddings(device, net, dataloader):
@@ -158,8 +142,6 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
     n = len(labels_list)
     thr = 0
 
-    # Calcolo dei totali per GAR e FAR
-    # unique_labels = set(labels)
     while thr <= 1:
         THS.append(thr)
         DI = np.zeros(n)
@@ -178,7 +160,6 @@ def identification_test_all_vs_all(M, labels_list, threshold_step=0.005, log=Fal
                 if labels_list[i] == labels_list[min_index]:
                     DI[0] += 1
 
-                    # Check for impostor case
                     impostor_found = False
                     for k in indexes_of_sorted_row_i:
                         if row_i[k] <= thr and labels_list[k] != label_i:
@@ -226,8 +207,6 @@ def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gal
     n = len(labels_lists_probe)
     thr = 0
 
-    # Calcolo dei totali per GAR e FAR
-    # unique_labels = set(labels)
     while thr <= 1 + threshold_step:
         THS.append(thr)
         DI = np.zeros(len(labels_lists_gallery))
@@ -278,9 +257,8 @@ def identification_test_probe_vs_gallery(M, labels_lists_probe, labels_lists_gal
     return THS, DIR, GRR, FAR, FRR
 
 def verification_all_vs_all(M, labels_list, threshold_step=0.005, log=False):
-    # Initialize result lists for thresholds
-    TG = len(labels_list)  # Total genuine pairs (one per user)
-    TI = TG * (len(set(labels_list)) - 1)  # Total impostor pairs
+    TG = len(labels_list)
+    TI = TG * (len(set(labels_list)) - 1)
 
     # Initialize metrics
     GARs, FARs, FRRs, GRRs = [], [], [], []
@@ -293,7 +271,6 @@ def verification_all_vs_all(M, labels_list, threshold_step=0.005, log=False):
             genuine_label = labels_list[i]
             min_distances = {}
 
-            # Iterate over all other groups (columns) with the same label
             for j in range(len(M)):
                 if i == j:
                     continue
@@ -332,11 +309,9 @@ def verification_all_vs_all(M, labels_list, threshold_step=0.005, log=False):
 
 
 def verification_probe_vs_gallery(M, labels_lists_probe, labels_lists_gallery, threshold_step=0.005, log=False):
-    # Initialize result lists for thresholds
-    TG = len(labels_lists_probe)  # Total genuine pairs (one per user)
-    TI = TG * (len(set(labels_lists_probe)) - 1)  # Total impostor pairs
+    TG = len(labels_lists_probe)
+    TI = TG * (len(set(labels_lists_probe)) - 1)
 
-    # Initialize metrics
     GARs, FARs, FRRs, GRRs = [], [], [], []
 
     thr = 0
@@ -347,7 +322,6 @@ def verification_probe_vs_gallery(M, labels_lists_probe, labels_lists_gallery, t
             genuine_label = labels_lists_probe[i]
             min_distances = {}
 
-            # Iterate over all other groups (columns) with the same label
             for j in range(len(labels_lists_gallery)):
                 if i == j:
                     continue
@@ -370,7 +344,6 @@ def verification_probe_vs_gallery(M, labels_lists_probe, labels_lists_gallery, t
                     else:
                         GR += 1
 
-        # Calculate rates
         GARs.append(GA / TG if TG > 0 else 0)
         FARs.append(FA / TI if TI > 0 else 0)
         FRRs.append(FR / TG if TG > 0 else 0)

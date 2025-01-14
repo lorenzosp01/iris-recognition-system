@@ -7,8 +7,6 @@ from tqdm import tqdm
 from src.data.CasiaIrisDataset import CasiaIrisDataset
 from src.utils.irisExtractor import get_cropped_iris_image
 
-# Leggere le immagini, trovare l'occhio e salvare immagine normalizzata e template in due cartelle separate seguendo la struttura originale del dataset
-# Il dataset originale poi deve essere modificato in modo da utilizzare solamente le imm
 
 originalPath = "F:\\Dataset\\Casia"
 
