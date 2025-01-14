@@ -35,7 +35,7 @@ class CasiaIrisDataset(Dataset):
             for eye in os.listdir(os.path.join(self.image_dir, user)):
                 subdir_path = os.path.join(user, eye)
                 for img in os.listdir(os.path.join(self.image_dir, user, eye)):
-                    if img.endswith('.jpg'):
+                    if img.endswith('.jpg') or img.endswith('.json'):
                         self.image_paths.append(os.path.join(self.image_dir, user, eye, img))
                         eyeN = 0 if "L" in eye else 1
                         label = int(user) + (eyeN*1000)

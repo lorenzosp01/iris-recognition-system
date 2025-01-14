@@ -1,18 +1,13 @@
 import json
 import multiprocessing
-import os
-import random
 
 import numpy as np
-from iris import HammingDistanceMatcher, IrisTemplate
+from iris import IrisTemplate
 from iris.nodes.matcher.utils import simple_hamming_distance
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from src.data.CasiaIrisDataset import CasiaIrisDataset
 from src.data.datasetUtils import splitDataset
-
-distance_matrix = np.zeros((9984, 9984))
 # Define dataset root directory
 
 # Function to load iris templates and their labels
@@ -103,7 +98,7 @@ if __name__ == "__main__":
 
     # Assuming templates is a pre-loaded list of iris templates
     # Check for valid data
-    dataset_dir = "../Casia"
+    dataset_dir = "F:\\Dataset\\Casia"
     dataset = CasiaIrisDataset(dataset_dir, transform=[], encoding=True)
 
     _, _, test_dataset = splitDataset(dataset, 0.2, 0.1)
