@@ -14,7 +14,7 @@ The system is implemented in Python and uses OpenCV for image processing.
 
 ## Verification flow
 
-![Alt text](images/verification_flow.png "Verification flow")
+![Alt text](images/img.png "Standard pipeline for iris recognition")
 
 ## Dependencies
 
