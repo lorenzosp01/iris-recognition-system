@@ -90,6 +90,10 @@ class LoginPage(QWidget):
 
         output = process_image(self.image_path, self.switch_input.currentText().lower())
 
+        if "error" in output:
+            QMessageBox.warning(self, 'Error', output["error"])
+            return
+
         classic_embedding = json.loads(output["iris_template_output"])
         resnet_embedding = json.loads(output["full_eye_prediction"])
         resnet_normalized_embedding = json.loads(output["normalized_iris_prediction"])
@@ -195,7 +199,12 @@ class RegisterPage(QWidget):
             QMessageBox.warning(self, 'Error', 'Please select an image.')
             return
 
+
         output = process_image(image_path, self.switch_input.currentText().lower())
+
+        if "error" in output:
+            QMessageBox.warning(self, 'Error', output["error"])
+            return
 
         is_new_user = insert_user(username, output["iris_template_output"], output["full_eye_prediction"], output["normalized_iris_prediction"])
         if is_new_user:

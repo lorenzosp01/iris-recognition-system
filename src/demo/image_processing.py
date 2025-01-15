@@ -36,7 +36,7 @@ def process_eye_image(eye_image, eye_side, device="cpu"):
     pipeline_output = iris_pipeline(img_data=eye_image, eye_side=eye_side)
 
     if pipeline_output['error'] is not None:
-        return {"error": pipeline_output['error']}
+        return {"error": "An error occurred during processing."}
 
     try:
         iris_center = pipeline_output["metadata"]["eye_centers"]["iris_center"]
@@ -69,19 +69,3 @@ def process_eye_image(eye_image, eye_side, device="cpu"):
 
     except Exception as e:
         return {"error": f"An error occurred during processing: {str(e)}"}
-
-
-if __name__ == '__main__':
-    eye_image = cv2.imread("eye.jpg", cv2.IMREAD_GRAYSCALE)
-
-    if eye_image is None:
-        print("Error: Could not load image.")
-    else:
-        output = process_eye_image(eye_image=eye_image, eye_side="right", device="cpu")
-
-        if "error" in output:
-            print("Error:", output["error"])
-        else:
-            print(type(output["full_eye_prediction"]))
-            print(type(output["normalized_iris_prediction"]))
-            print(type(output["iris_template_output"]))
