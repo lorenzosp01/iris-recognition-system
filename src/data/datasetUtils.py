@@ -35,24 +35,29 @@ def splitDataset(dataset, train_test_split_size=0.2, train_val_split_size=0.1):
 
     return train_dataset, val_dataset, test_dataset
 
-def split_dataset_gallery_test(dataset, gallery_ratio=0.4, seed=42):
+def split_dataset_gallery_test(dataset, gallery_ratio=0.4, seed=42, full_probe_ratio=0.05):
 
     label_to_indices = defaultdict(list)
 
     for idx, (input_data, label, p) in enumerate(dataset):
         label_to_indices[label].append(idx)
 
+    all_probe_labels = random.sample(list(label_to_indices.keys()),
+                                k=max(1, int(len(label_to_indices) * full_probe_ratio)))
 
     random.seed(seed)
     gallery_indices = []
     test_indices = []
 
     for label, indices in label_to_indices.items():
-        random.shuffle(indices)
+        if label in all_probe_labels:
+            test_indices.extend(indices)
+        else:
+            random.shuffle(indices)
 
-        n_gallery = max(1, int(len(indices) * gallery_ratio))
+            n_gallery = max(1, int(len(indices) * gallery_ratio))
 
-        gallery_indices.extend(indices[:n_gallery])
-        test_indices.extend(indices[n_gallery:])
+            gallery_indices.extend(indices[:n_gallery])
+            test_indices.extend(indices[n_gallery:])
 
     return gallery_indices, test_indices
